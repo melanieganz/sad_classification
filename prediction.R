@@ -6,6 +6,10 @@ library('mets')
 ## LOAD AND ORGANIZE DATA
 ####
 
+###
+## Load fMRI data
+###
+
 dd0 <- read.csv('/data1/patrick/fmri/hvi_trio/sad_classification/sad_fmri.csv')
 
 # Convert variables to character
@@ -21,11 +25,108 @@ for (i in unique(dd0$cimbi.id)){
     dd0[which(dd0$cimbi.id == i), 'scan_order'] <- order(dd0[dd0$cimbi.id == i,'mr.id'])
 }
 
+# Data included in Camilla manuscript
 dd0 <- dd0[dd0$camilla_dataset == 1,]
 
 # List of predictor variable names
 predvar <- c("angry_lamy", "angry_ramy", "fear_lamy", "fear_ramy", "neutral_lamy", "neutral_ramy")
 
+
+###
+## Load SB data
+###
+ 
+dd_sb <- read.csv('/data1/patrick/fmri/hvi_trio/sad_classification/DBproject_SumWin_SB_MelPat.csv')
+
+# Rename columnes
+colnames(dd_sb)[colnames(dd_sb) == 'CIMBI.ID'] <- 'cimbi.id'
+colnames(dd_sb)[colnames(dd_sb) == 'Person.status'] <- 'group'
+colnames(dd_sb)[colnames(dd_sb) == 'Gender'] <- 'sex'
+colnames(dd_sb)[colnames(dd_sb) == "Age.at.SB.scan"] <- 'age.sb'
+colnames(dd_sb)[colnames(dd_sb) == "SB.scan.date"] <- 'sb.scan.date'
+colnames(dd_sb)[colnames(dd_sb) == "SB.ID"] <- 'sb.id'
+colnames(dd_sb)[colnames(dd_sb) == "HighBinding_SB_BPnd_NonPV_GM"] <- 'sb.hb'
+colnames(dd_sb)[colnames(dd_sb) == "Neocortex_SB_BPnd_NonPV_GM"] <- 'sb.neo'
+
+# Determine genotype status
+dd_sb$httlpr2 <- factor(dd_sb$SLC6A4.5HTTLPR == 'll', labels = c('sx', 'll'))
+dd_sb$sert2 <- factor(dd_sb$SLC6A4.5HTTLPR == 'll' & dd_sb$"SLC6A4.5HTTLPR.A.G..l.allele." == 'AA', labels = c('sx', 'lala'))
+
+# Set variable type
+dd_sb$sb.id <- as.character(dd_sb$sb.id)
+dd_sb$group <- as.character(dd_sb$group)
+
+# Determine season for each scan based on sb.scan.date
+dd_sb$season <- NA
+for (i in seq(nrow(dd_sb))){
+    if (as.numeric(format(as.Date(dd_sb[i,'sb.scan.date'], '%d/%m/%Y'), '%m')) %in% seq(4,8)){
+        dd_sb[i,'season'] <- 'S'
+    } else if((as.numeric(format(as.Date(dd_sb[i,'sb.scan.date'], '%d/%m/%Y'), '%m')) %in% c(seq(10,12), seq(2)))){
+        dd_sb[i,'season'] <- 'W'
+    }
+}
+dd_sb$season <- factor(dd_sb$season, levels = c('S', 'W'))
+
+# Define first scan based on sb.id
+dd_sb$scan_order <- NA
+for (i in unique(dd_sb$cimbi.id)){
+    dd_sb[which(dd_sb$cimbi.id == i), 'scan_order'] <- order(dd_sb[dd_sb$cimbi.id == i,'sb.id'])
+}
+
+dd_sb <- cbind(dd_sb[,c('cimbi.id', 'group', 'season', 'sb.id', 'sex', 'age.sb', 'sb.hb', 'sb.neo', 'httlpr2', 'sert2', 'scan_order')])
+
+predvar <- c('sb.hb', 'sb.neo')
+
+###
+## Load DASB data
+###
+
+dd_dasb <- read.csv('/data1/patrick/fmri/hvi_trio/sad_classification/DBproject_SumWin_DASB_MelPat.csv')
+
+# Rename columnes
+colnames(dd_dasb)[colnames(dd_dasb) == 'CIMBI.ID'] <- 'cimbi.id'
+colnames(dd_dasb)[colnames(dd_dasb) == 'Person.status'] <- 'group'
+colnames(dd_dasb)[colnames(dd_dasb) == 'Gender'] <- 'sex'
+colnames(dd_dasb)[colnames(dd_dasb) == "Age.at.DASB.scan"] <- 'age.dasb'
+colnames(dd_dasb)[colnames(dd_dasb) == "DASB.scan.date"] <- 'dasb.scan.date'
+colnames(dd_dasb)[colnames(dd_dasb) == "DASB.ID"] <- 'dasb.id'
+colnames(dd_dasb)[colnames(dd_dasb) == "HighBinding_DASB_BPnd_NonPV_GM"] <- 'dasb.hb'
+colnames(dd_dasb)[colnames(dd_dasb) == "GlobNeoCort_DASB_BPnd_NonPV_GM"] <- 'dasb.neo'
+
+# Determine genotype status
+dd_dasb$httlpr2 <- factor(dd_dasb$SLC6A4.5HTTLPR == 'll', labels = c('sx', 'll'))
+dd_dasb$sert2 <- factor(dd_dasb$SLC6A4.5HTTLPR == 'll' & dd_dasb$"SLC6A4.5HTTLPR.A.G..l.allele." == 'AA', labels = c('sx', 'lala'))
+
+# Set variable type
+dd_dasb$dasb.id <- as.character(dd_dasb$dasb.id)
+dd_dasb$group <- as.character(dd_dasb$group)
+
+# Determine season for each scan based on sb.scan.date
+dd_dasb$season <- NA
+for (i in seq(nrow(dd_dasb))){
+    if (as.numeric(format(as.Date(dd_dasb[i,'dasb.scan.date'], '%d/%m/%Y'), '%m')) %in% seq(4,8)){
+        dd_dasb[i,'season'] <- 'S'
+    } else if((as.numeric(format(as.Date(dd_dasb[i,'dasb.scan.date'], '%d/%m/%Y'), '%m')) %in% c(seq(10,12), seq(2)))){
+        dd_dasb[i,'season'] <- 'W'
+    }
+}
+dd_dasb$season <- factor(dd_dasb$season, levels = c('S', 'W'))
+
+# Define first scan based on sb.id
+dd_dasb$scan_order <- NA
+for (i in unique(dd_dasb$cimbi.id)){
+    dd_dasb[which(dd_dasb$cimbi.id == i), 'scan_order'] <- order(dd_dasb[dd_dasb$cimbi.id == i,'dasb.id'])
+}
+
+dd_dasb <- cbind(dd_dasb[,c('cimbi.id', 'group', 'season', 'dasb.id', 'sex', 'age.dasb', 'dasb.hb', 'dasb.neo', 'httlpr2', 'sert2', 'scan_order')])
+
+predvar <- c('dasb.hb', 'dasb.neo')
+
+###
+## Load Neuropsych data
+####
+
+# Insert code here
 
 ####
 ## DEFINE FUNCTIONS
@@ -123,9 +224,13 @@ fx_logit <- function(df_list,outvar='group',predvar){
 ####
 
 ## Example code
+# MR
 a <- fx_sample(dd0, 12, 'winter', predvar=predvar)
 b <- fx_rF(a,predvar=predvar)
 c <- fx_logit(a,predvar=predvar)
+
+a <- fx_sample(dd_sb, 5, 'winter', predvar=predvar)
+a <- fx_sample(dd_dasb, 15, 'winter', predvar=predvar)
 
 # Evaluate performance
 perm <- 1000
@@ -135,7 +240,7 @@ rF_out <- lapply(seq(perm),
 rF_table <- matrix(0, nrow = 2, ncol = 2)
 rownames(rF_table) <- c('Healthy Control', 'Case')
 colnames(rF_table) <- c('Healthy Control', 'Case')
-for (i in seq(length(tmp))){
+for (i in seq(length(rF_out))){
     rF_table <- table(rF_out[[i]]$pred, rF_out[[i]]$actual) + rF_table
 }
 print(rF_table)
