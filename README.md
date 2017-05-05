@@ -1,28 +1,24 @@
 # Code repository for SAD classification
 
-This is a code repository for the SAD classification project. The goal is to try and use our fMRI, PET and Neuropsych data on the SAD patients in order to predict SAD status
+This is a code repository for the SAD classification project. 
 
-TO DO
+Background:
+Seasonal affective disorder (SAD) is characterized by seasonally recurring depression.
+At NRU, we have identified several interesting phenotypes of SAD with different imaging modalities. Using fMRI, we have observed lower amygdala response to fear, angry and neutral faces in SAD individuals compared to healthy controls (HC), independent of season (Borgsted et al., in prep.). Using DASB PET, we have seen that SAD patients have higher serotonin transporter binding compared to HC (P = 0.01) in winter (McMahon et al., 2016). Neuropsychological tests of cognition indicate group differences in working memory, cognitive processing speed and motor speed (Hjort et al., in prep.). Finally, there is evidence for significant group differences in neuroticism (Hjort et al. 2, in prep.). However, beyond identifying group differences, determining whether these measures informatively predict group status would support their potential diagnostic value. Current SAD diagnostic criteria include the presence of symptoms for two years, thus identifying markers aiding or facilitating clinical determination could save resources and benefit patients. 
 
-Data:
-1 Patrick will prepare fMRI data - F A N (or F+A-N) in amygdala left and right combined, show that Land R amygdalin are correlated, maybe basal lateral
+Hypothesis:
+We can predict group status (SAD or HC) significantly above chance using informative phenotypic markers. Specific hypotheses:
+1.	Can fMRI data/PET data/Neuropsych data individually predict group status?
+2.	Can a combination of all the data significantly predict group status?
+3.	Which markers (fMRI, PET or neuropsychological) contribute most to prediction accuracy?
 
-2 Besides fMRI we will use the following data 
-Pet data - extract from Peter's sheet
-Thalamus, putamen, caudate as well as amygdala and hippo for dasb
-putamen, caudate for SB
-          Neocortex for both
-          Volume data?
-          Covariates - look at list, but need to kick out Httplr since that was used to recruit
+Subjects and Methods:
+Different subsets of individuals have various measures of interest:
+29 SAD and 30 HC individuals have neuropsychological and personality measures at summer/winter.
+17 SAD and 23 HC individuals have [11C]DASB PET scans at summer/winter.
+14 SAD and 7 HC individuals have [11C]SB207145 PET scans at summer/winter.
+17 SAD and 15 HC individuals have MRI scans (including structural MR and fMRI) at summer/winter.
 
+Data analysis:
+We will use machine-learning models to predict group status (SAD or HC). This will include logistic regression and randomForest and possibly other model types as necessary. Model performance will be prediction of unseen (test) datasets.
 
-Methodolody:
-
-Classification 
-Use all data available for each modality, use complete cases for combinding all modalities
-
-Scans
-a) Only Summer
-b) Only Winter
-c) 1st scan made 
-d) Randomly pick one scan, summer or winter
