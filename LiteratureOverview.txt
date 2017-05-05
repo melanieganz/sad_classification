@@ -1,0 +1,73 @@
+Neuropsych - SAD paper Liv:
+29 SAD, 30 HC
+
+cognition features:
+
+	* working memory -  Letter-number Sequencing task (LNS)
+	* cognitive processing speed - the Symbol Digit Modalities Test (SDMT)
+	* motor speed - Simple Reaction Time (SRT) Note: They log transformed (loge) SRT data, yielding normally distributed residuals.
+
+
+all show a significant group difference
+
+covariates: 
+
+	* seasonal test order - summer-winter or winter-summer
+	* age 
+	* sex  
+	* IQ in terms of RIST
+
+
+Neuropsych - SAD paper Personality:
+29 SAD, 30 HC
+
+personality features from NEO Personality Inventory-Revised (NEO PI-R) :
+
+	* Neuroticism 
+	* Extraversion
+	* Openness
+	* Agreeableness
+	* Conscientiousness
+
+
+only significant for neuroticism; htere is a group by season interaction for extraversion and openness
+
+PET - Brenda's Brain paper:
+17 SAD, 23 HC
+
+patients with seasonal affective disorder had higher serotonin transporter than the healthy control subjects (P = 0.01) in winter only!
+global BPnd as defined as sum(bnpnd * volume)/total volume
+
+signififcant group effect for seasonal chnage
+
+covariates:
+
+	* age
+	* genotype
+	* sex
+
+There was a significant differences in the summer and winter measurements for healthy controls in inj. mass
+
+fMRI - Camilla's paper:
+17 SAD, 15 HC <- why are there so much fewer HCs?
+
+Compared to healthy controls, SAD individuals showed significantly lower amygdala reactivity to all faces, independent of season, with no evidence for a season-by-group interaction
+
+covariates:
+
+	* scan order
+	* age
+	* sex
+	* neuroticism
+	* 
+5-HTTLPR genotype
+
+
+
+none of the covariates were significant though
+
+Unpublished data from us:
+
+17 SAD and 23 HC individuals have [11C]DASB PET scans at summer and winter
+
+Martin and Brenda are currently looking at this.

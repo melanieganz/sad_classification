@@ -126,7 +126,55 @@ predvar <- c('dasb.hb', 'dasb.neo')
 ## Load Neuropsych data
 ####
 
-# Insert code here
+dd_neuropsych <- read.csv('/data1/Ganz/Project14/DBproject_SumWin_Neuropsy_MelPat.csv',sep = ";")
+
+# Rename columnes
+colnames(dd_neuropsych)[colnames(dd_neuropsych) == 'CIMBI.ID'] <- 'cimbi.id'
+colnames(dd_neuropsych)[colnames(dd_neuropsych) == 'Person.status'] <- 'group'
+colnames(dd_neuropsych)[colnames(dd_neuropsych) == "Date.of.neuropsychological.examination"] <- 'date.neuropsych'
+colnames(dd_neuropsych)[colnames(dd_neuropsych) == "Date.of.NEO.P.IR.examination"] <- 'date.neopir'
+
+#Covariates
+colnames(dd_neuropsych)[colnames(dd_neuropsych) == 'Gender'] <- 'sex'
+colnames(dd_neuropsych)[colnames(dd_neuropsych) == "Age.at.neuropsych"] <- 'age.neuropsych'
+colnames(dd_neuropsych)[colnames(dd_neuropsych) == "Rist.-.Index"] <- 'IQ'
+colnames(dd_neuropsych)[colnames(dd_neuropsych) == "MDI"] <- 'MDI'
+
+# Livs paper
+colnames(dd_neuropsych)[colnames(dd_neuropsych) == "SDMT.'total'.score"] <- 'neuropsych.SDMT' #cognitive processing speed
+colnames(dd_neuropsych)[colnames(dd_neuropsych) == "Letter-number.sequencing.total.score"] <- 'neuropsych.LNS' 
+colnames(dd_neuropsych)[colnames(dd_neuropsych) == "SRT.-.Total.mean.reaction.latency"] <- 'neuropsych.SRT' # motor speed
+                        
+# Deas paper                        
+colnames(dd_neuropsych)[colnames(dd_neuropsych) == "N:.Neuroticism"] <- 'neopir.neuroticism'
+colnames(dd_neuropsych)[colnames(dd_neuropsych) == "E: Extraversion"] <- 'neopir.extraversion'
+colnames(dd_neuropsych)[colnames(dd_neuropsych) == "O: Openness"] <- 'neopir.openness'
+colnames(dd_neuropsych)[colnames(dd_neuropsych) == "A: Agreeableness"] <- 'neopir.agreeableness'
+colnames(dd_neuropsych)[colnames(dd_neuropsych) == "C: Conscientiousness"] <- 'neopir.conscientiousness'
+
+# Determine season for testing based on testing dates
+dd_neuropsych$season.neuropsych <- NA
+for (i in seq(nrow(dd_neuropsych))){
+  if (as.numeric(format(as.Date(dd_neuropsych[i,'date.neuropsych'], '%d-%m-%Y'), '%m')) %in% seq(4,8)){
+    dd_neuropsych[i,'season.neuropsych'] <- 'S'
+  } 
+  else if((as.numeric(format(as.Date(dd_neuropsych[i,'date.neuropsych'], '%d-%m-%Y'), '%m')) %in% c(seq(10,12), seq(2)))){
+    dd_neuropsych[i,'season.neuropsych'] <- 'W'
+  }
+}
+dd_neuropsych$season.neuropsych <- factor(dd_neuropsych$season.neuropsych, levels = c('S', 'W'))
+
+dd_neuropsych$season.neopir <- NA
+for (i in seq(nrow(dd_neuropsych))){
+  if (as.numeric(format(as.Date(dd_neuropsych[i,'date.neopir'], '%d-%m-%Y'), '%m')) %in% seq(4,8)){
+    dd_neuropsych[i,'season.neopir'] <- 'S'
+  } 
+  else if((as.numeric(format(as.Date(dd_neuropsych[i,'date.neopir'], '%d-%m-%Y'), '%m')) %in% c(seq(10,12), seq(2)))){
+    dd_neuropsych[i,'season.neopir'] <- 'W'
+  }
+}
+dd_neuropsych$season.neopir <- factor(dd_neuropsych$season.neopir, levels = c('S', 'W'))
+
 
 ####
 ## DEFINE FUNCTIONS
