@@ -2,6 +2,8 @@ rm(list = ls())
 library('randomForest')
 library('mets')
 
+out.folder <- '/data1/patrick/fmri/hvi_trio/sad_classification/'
+
 ####
 ## LOAD AND ORGANIZE DATA
 ####
@@ -27,10 +29,6 @@ for (i in unique(dd0$cimbi.id)){
 
 # Data included in Camilla manuscript
 dd0 <- dd0[dd0$camilla_dataset == 1,]
-
-# List of predictor variable names
-predvar <- c("angry_lamy", "angry_ramy", "fear_lamy", "fear_ramy", "neutral_lamy", "neutral_ramy")
-
 
 ###
 ## Load SB data
@@ -75,8 +73,6 @@ for (i in unique(dd_sb$cimbi.id)){
 
 dd_sb <- cbind(dd_sb[,c('cimbi.id', 'group', 'season', 'sb.id', 'sex', 'age.sb', 'sb.hb', 'sb.neo', 'httlpr2', 'sert2', 'scan_order')])
 
-predvar <- c('sb.hb', 'sb.neo')
-
 ###
 ## Load DASB data
 ###
@@ -119,8 +115,6 @@ for (i in unique(dd_dasb$cimbi.id)){
 }
 
 dd_dasb <- cbind(dd_dasb[,c('cimbi.id', 'group', 'season', 'dasb.id', 'sex', 'age.dasb', 'dasb.hb', 'dasb.neo', 'httlpr2', 'sert2', 'scan_order')])
-
-predvar <- c('dasb.hb', 'dasb.neo')
 
 ###
 ## Load Neuropsych data
@@ -182,8 +176,28 @@ dd_neuropsych$season.neopir <- factor(dd_neuropsych$season.neopir, levels = c('S
 
 #### Function returns list with 6 objects: (1) train and (2) test dataframes along with HC and SAD train and test group (3-6). Removes rows from an input "dataframe" based on "criteria" and columns except "outvar" and "predvar". Train and Test data.frames are created based on random sampling with "n" datasets  from each group (Healthy Control & Case) allocated to Train data.frame. That is, Train data.frame is balanced across groups.  Test data.frame consists of remaining datasets (not necessarily balanced).
 
-fx_sample <- function(dataframe,n,criteria,outvar='group',predvar){
-
+fx_sample <- function(dataframe,n,criteria,outvar='group',predvar,perm = F){
+    
+    # If permutation test, scramble group assignment
+    if (perm){
+        # Obtain cimbi.id
+        ids <- unique(dataframe$cimbi.id)
+        # Set of group assignments
+        group_list <- c()
+        for (id in ids){
+            group_list <- c(group_list, unique(dataframe[dataframe$cimbi.id == id,'group']))
+        }
+        
+        # Permuted group assignment
+        new_group_list <- sample(group_list, replace = F)
+        
+        # Update group column to reflect permuted group assignment
+        for (id in ids){
+            new_id <- new_group_list[which(id == ids)]
+            dataframe[dataframe$cimbi.id == id, 'group'] <- new_id
+        }
+    }
+    
     # Check that criteria specified is supported
     criteria_set <- c('summer', 'winter', 'first', 'random')
     if (!criteria %in% criteria_set){
@@ -267,38 +281,199 @@ fx_logit <- function(df_list,outvar='group',predvar){
     return (list(pred = pred.fact, actual = df_list[['test']][,outvar], logit = l))
 }
 
+### Function computes and returns performance measures associated with a contingency table. Function takes either (1) a list containing ("pred") and ("actual") or (2) an already computed contingency table (in which case, make.c_table = F).  Metrics computed and returned along with contingency table.
+
+fx_modelPerf <- function(model_obj, make.c_table = T){
+    
+    if (make.c_table){
+        # Contingency table
+        c_table <- table(model_obj$pred, model_obj$actual)
+    } else {c_table <- model_obj}
+    
+    # performance measures
+    perf <- list()
+    
+    # reference
+    perf$positive <- 'Case'
+    perf$negative <- 'Healthy Control'
+    
+    # true positive
+    perf$TP <- c_table[perf$positive, perf$positive]
+    # false positive
+    perf$FP <- c_table[perf$positive, perf$negative]
+    # true negative
+    perf$TN <- c_table[perf$negative, perf$negative]
+    # false negative
+    perf$FN <- c_table[perf$negative, perf$positive]
+    # sensitivity
+    perf$sensitivity <- perf$TP/(perf$TP + perf$FN)
+    # specificity
+    perf$specificity <- perf$TN/(perf$TN + perf$FP)
+    # F1
+    perf$F1 <- (2*perf$TP)/((2*perf$TP) + perf$FP + perf$FN)
+    # accuracy
+    perf$accuracy <- (perf$TP + perf$TN)/sum(c_table)
+    # contingency table
+    perf$c_table <- c_table
+    
+    return(perf)
+}
+
+### Function returns a histogram of observed values (null distribution) and vertical line of single value (observed value) and null-derived p-value. Function takes (1) either list or array of values describing null distribution ("permObject"), (2) either list or value describing observed measure ("obsObject") and (3) name of measure ("measure") used to read if inputs are list.  Plot object (i.e., histogram of null distribution), observed value and permutation-derived p-value is returned
+
+fx_nullComparison <- function(permObject, obsObject, measure = 'accuracy'){
+    
+    # Check that measure is among those in list
+    measure_list <- c('sensitivity', 'specificity', 'F1', 'accuracy')
+    if (!measure %in% measure_list){
+        stop(paste('Please choose measure from:', paste0(measure_list, collapse = ', ')))
+    }
+    
+    # Number of permutations
+    n <- length(permObject)
+    
+    # Determine whether permObject is list or (assumed) array. If list, return array of specified measure
+    if (typeof(permObject) == 'list'){
+        permDistribution <- unlist(sapply(seq(n), function(i) permObject[[i]][measure]))
+    } else {permDistribution <- permObject}
+    
+    # Determine whether obsObject is list or (assumed) array. If list, return specified measure
+    if(typeof(obsObject) == 'list'){
+        obsMeasure <- unlist(obsObject[measure])
+    } else {obsMeasure <- obsObject}
+    
+    # Permutation derived p-value
+    permP <- sum(permDistribution > obsMeasure)/length(permDistribution)
+    
+    # Generate histogram
+    hist(permDistribution, las = 1, main = paste0('Null distribution: ', measure))
+    mtext(paste0('obs. perf: ', signif(obsMeasure, 3), '; perm. p-value = ', signif(permP,3)))
+    title(sub = paste0('N = ', n, ' permutations'))
+    abline(v = obsMeasure, lty = 2, col = 'red')
+    
+    out <- list()
+    out$permValues <- permDistribution
+    out$obsValue <- obsMeasure
+    out$p.value <- permP
+    
+    return(out)
+}
+
 ####
 ## RUN MODELS
 ####
 
-## Example code
-# MR
-a <- fx_sample(dd0, 12, 'winter', predvar=predvar)
+###
+## Define predictor variables
+###
+
+# fMRI
+predvar <- c("angry_lamy", "angry_ramy", "fear_lamy", "fear_ramy", "neutral_lamy", "neutral_ramy")
+
+# # SB
+# predvar <- c('sb.hb', 'sb.neo')
+# 
+# # DASB
+# predvar <- c('dasb.hb', 'dasb.neo')
+
+###
+## Example code - based on fMRI data
+###
+
+# Standardize variables
+dd <- dd0
+dd[,predvar] <- scale(dd0[,predvar])
+
+# Run functions
+a <- fx_sample(dd, 12, 'winter', predvar=predvar)
 b <- fx_rF(a,predvar=predvar)
 c <- fx_logit(a,predvar=predvar)
+d <- fx_modelPerf(b)
 
+# Evaluate performance
+rsplit <- 1000
+rF_rsplit <- lapply(seq(rsplit), 
+             function(i) fx_rF(fx_sample(dd, 12, 'winter', predvar=predvar),predvar=predvar))
+
+rF_rsplitTable <- matrix(0, nrow = 2, ncol = 2)
+rownames(rF_rsplitTable) <- c('Healthy Control', 'Case')
+colnames(rF_rsplitTable) <- c('Healthy Control', 'Case')
+for (i in seq(rsplit)){
+    rF_rsplitTable <- table(rF_rsplit[[i]]$pred, rF_rsplit[[i]]$actual) + rF_rsplitTable
+}
+print(rF_rsplitTable)
+
+rsplitPerf <- fx_modelPerf(rF_rsplitTable, make.c_table = F)
+
+# Derive null distribution
+perm <- 10000
+rF_perm <- lapply(seq(perm),
+                 function(i) fx_rF(fx_sample(dd, 12, 'winter', predvar=predvar, perm = T),predvar=predvar))
+rF_permTable <- matrix(0, nrow = 2, ncol = 2)
+rownames(rF_permTable) <- c('Healthy Control', 'Case')
+colnames(rF_permTable) <- c('Healthy Control', 'Case')
+for (i in seq(perm)){
+    rF_permTable <- table(rF_perm[[i]]$pred, rF_perm[[i]]$actual) + rF_permTable
+}
+print(rF_permTable)
+
+# Compute performance measures
+rF_permPerf <- lapply(seq(perm),
+                  function(i) fx_modelPerf(rF_perm[[i]]))
+
+# Performance measures vs. null distribution
+perfSummary <- fx_nullComparison(rF_permPerf, rsplitPerf, measure = 'accuracy')
+pdf(paste0(out.folder, 'summaryPerformance.pdf'))
+for (measure in c('sensitivity', 'specificity', 'F1', 'accuracy')){
+    fx_nullComparison(rF_permPerf, rsplitPerf, measure = measure)
+}
+dev.off()
+
+
+
+
+
+## Example code - based on SB data
 a <- fx_sample(dd_sb, 5, 'winter', predvar=predvar)
 a <- fx_sample(dd_dasb, 15, 'winter', predvar=predvar)
 
-# Evaluate performance
-perm <- 1000
-rF_out <- lapply(seq(perm), 
-             function(i) fx_rF(fx_sample(dd0, 12, 'winter', predvar=predvar),predvar=predvar))
+# SB dataset
+rsplit <- 1000
+rF_out <- lapply(seq(rsplit), 
+                 function(i) fx_rF(fx_sample(dd_sb, 5, 'winter', predvar=predvar),predvar=predvar))
 
 rF_table <- matrix(0, nrow = 2, ncol = 2)
 rownames(rF_table) <- c('Healthy Control', 'Case')
 colnames(rF_table) <- c('Healthy Control', 'Case')
-for (i in seq(length(rF_out))){
+for (i in seq(rsplit)){
     rF_table <- table(rF_out[[i]]$pred, rF_out[[i]]$actual) + rF_table
 }
 print(rF_table)
 
-logit_out <- lapply(seq(perm), 
-                 function(i) fx_logit(fx_sample(dd0, 12, 'winter', predvar=predvar),predvar=predvar))
+# SB dataset
+rsplit <- 1000
+rF_out <- lapply(seq(rsplit), 
+                 function(i) fx_rF(fx_sample(dd_dasb, 15, 'winter', predvar=predvar),predvar=predvar))
+
+rF_table <- matrix(0, nrow = 2, ncol = 2)
+rownames(rF_table) <- c('Healthy Control', 'Case')
+colnames(rF_table) <- c('Healthy Control', 'Case')
+for (i in seq(rsplit)){
+    rF_table <- table(rF_out[[i]]$pred, rF_out[[i]]$actual) + rF_table
+}
+print(rF_table)
+
+
+# Evaluate significance
+## Derive null distribution (perm ~ 10000)
+##  p = (1+(perm_perf > true_perf)/n
+
+logit_out <- lapply(seq(rsplit), 
+                 function(i) fx_logit(fx_sample(dd_dasb, 15, 'winter', predvar=predvar),predvar=predvar))
 logit_table <- matrix(0, nrow = 2, ncol = 2)
 rownames(logit_table) <- c('Healthy Control', 'Case')
 colnames(logit_table) <- c('Healthy Control', 'Case')
-for (i in seq(length(tmp))){
+for (i in seq(rsplit)){
     logit_table <- table(logit_out[[i]]$pred, logit_out[[i]]$actual) + logit_table
 }
 print(logit_table)
