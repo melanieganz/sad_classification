@@ -1,6 +1,8 @@
 rm(list = ls())
 library('randomForest')
 library('mets')
+library('parallel')
+require('ROCR')
 
 out.folder <- '/data1/patrick/fmri/hvi_trio/sad_classification/'
 
@@ -28,7 +30,7 @@ for (i in unique(dd0$cimbi.id)){
 }
 
 # Data included in Camilla manuscript
-dd0 <- dd0[dd0$camilla_dataset == 1,]
+# dd0 <- dd0[dd0$camilla_dataset == 1,]
 
 ###
 ## Load SB data
@@ -126,9 +128,43 @@ dd_dasb <- cbind(dd_dasb[,c('cimbi.id', 'group', 'season', 'dasb.id', 'sex', 'ag
 ## DEFINE FUNCTIONS
 ####
 
-#### Function returns list with 6 objects: (1) train and (2) test dataframes along with HC and SAD train and test group (3-6). Removes rows from an input "dataframe" based on "criteria" and columns except "outvar" and "predvar". Train and Test data.frames are created based on random sampling with "n" datasets  from each group (Healthy Control & Case) allocated to Train data.frame. That is, Train data.frame is balanced across groups.  Test data.frame consists of remaining datasets (not necessarily balanced).
+### Function name: fx_scramble
+### Function returns:
+###     (1) permuted dataframe
+### Function description:
+###     Permutes a "dataframe" based on some column name ("to.scramble") but ensures that shuffled column name is consistent for each person ("unique.id")
+fx_scramble <- function(dataframe, unique.id = 'cimbi.id', to.scramble = 'group'){
+    
+    # Obtain cimbi.id
+    ids <- unique(dataframe[,unique.id])
+    # Set of group assignments
+    group_list <- c()
+    for (id in ids){
+        group_list <- c(group_list, unique(dataframe[dataframe[,unique.id] == id, to.scramble]))
+    }
+    
+    # Permuted group assignment
+    new_group_list <- sample(group_list, replace = F)
+    
+    # Update group column to reflect permuted group assignment
+    for (id in ids){
+        new_id <- new_group_list[which(id == ids)]
+        dataframe[dataframe$cimbi.id == id, to.scramble] <- new_id
+    }
+    return(dataframe)
+}
 
-fx_sample <- function(dataframe,n,criteria,outvar='group',predvar,perm = F){
+### Function name: fx_sample
+### Function returns:
+###     (1) train ("train"), dataframe
+###     (2) test ("test"), dataframe
+###     (3) HC train ids ("hc_train_list"), dataframe
+###     (4) HC test ids ("hc_test_list"), dataframe
+###     (5) SAD train ids ("sad_train_list"), dataframe
+###     (6) SAD test ids ("sad_test_list"), dataframe
+### Function description:
+###     Removes rows from an input "dataframe" based on "criteria" and columns except "outvar" and "predvar". Train and Test dataframes are created based on random sampling with "n" datasets  from each group (Healthy Control & Case) allocated to Train dataframe. That is, Train data.frame is balanced across groups.  Test dataframe consists of remaining datasets (not necessarily balanced).
+fx_sample <- function(dataframe,n,criteria,outvar='group',predvar, perm = F){
     
     # If permutation test, scramble group assignment
     if (perm){
@@ -153,7 +189,7 @@ fx_sample <- function(dataframe,n,criteria,outvar='group',predvar,perm = F){
     # Check that criteria specified is supported
     criteria_set <- c('summer', 'winter', 'first', 'random')
     if (!criteria %in% criteria_set){
-        stop(paste('Incorrect criteria. Choose from: ', paste0(criteria_set, collapse = ', ')))
+        stop(paste0('Incorrect criteria. Choose from: ', paste0(criteria_set, collapse = ', ')))
     }
     
     # Subset data.frame based on criteria
@@ -188,59 +224,101 @@ fx_sample <- function(dataframe,n,criteria,outvar='group',predvar,perm = F){
                                  cbind(group = df_sub[sad_test,'group'], df_sub[sad_test, predvar])
     ))
     
+    # List of column names to pull
+    col.list <- c('cimbi.id', 'mr.id', 'dasb.id', 'sb,id', 'group')
+    col.get <- col.list[col.list %in% colnames(dataframe)]
+    if (!length(col.get)){
+        stop(paste0('Could not find any subject identifiable columns. Choose from: ', paste0(col.list, collapse = ', ')))
+    }
+    
     return(list(train = df_train, 
                 test = df_test, 
-                hc_train_list = df_sub[hc_train, c('cimbi.id','mr.id', 'group')],
-                hc_test_list = df_sub[hc_test, c('cimbi.id','mr.id', 'group')],
-                sad_train_list = df_sub[sad_train, c('cimbi.id','mr.id', 'group')],
-                sad_test_list = df_sub[sad_test, c('cimbi.id','mr.id', 'group')]
+                hc_train_list = df_sub[hc_train, col.get],
+                hc_test_list = df_sub[hc_test, col.get],
+                sad_train_list = df_sub[sad_train, col.get],
+                sad_test_list = df_sub[sad_test, col.get]
                 ))
 }
 
-### Function returns list of 3 objects: (1) observed and (2) predicted group status for datasets in Test data.frame and (3) related rF model. Function takes output from fx_sample as input ("df_list"). Runs randomForest model where "outvar" is predicted based on "predvar" (predictor variables).
+### Function name: fx_model
+### Function returns:
+###     (1) predicted class ("pred.class")
+###     (2) predicted probability ("pred.prob")
+###     (3) observed ("actual") and
+###     (4) model ("model")
+###     (5) type of model ("type")
+### Function description:
+###     Takes output from fx_sample as input ("df_list"). Runs selected model where "outvar" is predicted based on "predvar" (predictor variables).
 
-fx_rF <- function(df_list,outvar='group',predvar){
+fx_model <- function(df_list, outvar='group', predvar, model.type){
+    
+    # Check that model specified is supported
+    model.set <- c('logistic', 'rF')
+    if(!model.type %in% model.set){
+        stop(paste0('Specify appropriate model type. Choose from: ', paste0(model.set, collapse = ', ')))
+    }
     
     # model
-    rF_formula <- as.formula(paste(outvar, '~ .'))
-    rF <- randomForest(rF_formula, proximity = T, importance = T, data = df_list$train)
+    model.formula <- as.formula(paste(outvar, '~ .'))
+    
+    # Apply model based on model.type
+    if (model.type == 'logistic'){
+        model <- glm(model.formula, data = df_list$train, family = 'binomial')
+    } else if (model.type == 'rF'){
+        model <- randomForest(model.formula, data = df_list$train)
+    } else {stop(paste0('Cannot apply model.type: ', model.type, '! How did you get this far?!'))}
     
     # Predictors for unseen (test) datasets
     x.test <- df_list[['test']][,predvar]
     
-    #Use training model to predict unseen (test) datasets
-    pred <- predict(rF, newdata = x.test, type = 'class')
+    # Use model to predict test datasets
+    if (model.type == 'logistic'){
+        pred.prob <- predict(model, newdata = x.test, type = 'resp')
+        lev <- c('Healthy Control', 'Case')
+        pred.class <- factor(lev[as.numeric(pred.prob > 0.5) + 1], levels = c('Healthy Control', 'Case'))
+    } else if (model.type == 'rF'){
+        pred.class <- predict(model, newdata = x.test, type = 'class')
+        pred.prob <- predict(model, newdata = x.test, type = 'prob')[,'Case']
+    } else {stop(paste0('Cannot evaluate performance of model.type: ', model.type, '! How did you get this far?!'))}
     
-    return(list(pred = pred, actual = df_list[['test']][,outvar], rF = rF))
+    return(list(pred.class = pred.class, pred.prob = pred.prob, actual = df_list[['test']][,outvar], model = model, type = model.type))
+    
 }
 
-### Function returns list of 3 objects: (1) observed and (2) predicted group status for datasets in Test data.frame and (3) related logistic model. Function takes output from fx_sample as input ("df_list"). Runs logistic model where "outvar" is predicted based on "predvar" (predictor variables).
-
-fx_logit <- function(df_list,outvar='group',predvar){
+### Function name: fx_cTable
+### Function returns:
+###     (1) contingency table
+### Function description:
+###     Computes and returns contingency table. Function takes either (1) a list containing many models evaluated ("many" = T) or (2) a single model object ("many" = F).
+fx_cTable <- function(modelObj, many = T, groups = c('Healthy Control', 'Case')){
     
-    # model
-    logit_formula <- as.formula(paste(outvar, '~ .'))
-    l <- glm(logit_formula, data = df_list$train, family = 'binomial')
-    
-    # Predictors for unseen (test) datasets
-    x.test <- df_list[['test']][,predvar]
-    
-    #Use training model to predict unseen (test) datasets
-    pred <- predict(l, newdata = x.test, type = 'response')
-    lev <- levels(df_list[['train']][,outvar])
-    pred.fact <- factor(lev[round(pred)+1], levels = c('Healthy Control', 'Case'))
-    
-    return (list(pred = pred.fact, actual = df_list[['test']][,outvar], logit = l))
+    if (!many){
+        cTable <- table(modelObj$pred.class, modelObj$actual)
+    } else {
+        nObj <- length(modelObj)
+        cTable <- matrix(0, nrow = 2, ncol = 2)
+        rownames(cTable) <- groups
+        colnames(cTable) <- groups
+        for (i in seq(nObj)){
+            cTable <- table(modelObj[[i]]$pred.class, modelObj[[i]]$actual) + cTable
+        }
+    }
+    return (cTable)
 }
 
-### Function computes and returns performance measures associated with a contingency table. Function takes either (1) a list containing ("pred") and ("actual") or (2) an already computed contingency table (in which case, make.c_table = F).  Metrics computed and returned along with contingency table.
+### Function name: fx_modelPerf
+### Function returns:
+###     (1) Various performance metrics
+###     (2) Contingency table from which (1) is computed
+### Function description:
+###     Computes and returns performance measures associated with a contingency table. Function takes either (1) a list containing ("pred") and ("actual") or (2) an already computed contingency table (in which case, make.c_table = F).  Metrics computed and returned along with contingency table.
 
-fx_modelPerf <- function(model_obj, make.c_table = T){
+fx_modelPerf <- function(modelObj, make.c_table = T){
     
     if (make.c_table){
         # Contingency table
-        c_table <- table(model_obj$pred, model_obj$actual)
-    } else {c_table <- model_obj}
+        c_table <- table(modelObj$pred.class, modelObj$actual)
+    } else {c_table <- modelObj}
     
     # performance measures
     perf <- list()
@@ -271,8 +349,37 @@ fx_modelPerf <- function(model_obj, make.c_table = T){
     return(perf)
 }
 
-### Function returns a histogram of observed values (null distribution) and vertical line of single value (observed value) and null-derived p-value. Function takes (1) either list or array of values describing null distribution ("permObject"), (2) either list or value describing observed measure ("obsObject") and (3) name of measure ("measure") used to read if inputs are list.  Plot object (i.e., histogram of null distribution), observed value and permutation-derived p-value is returned
+### Function name: fx_internalPerm
+### Function returns:
+###     (1) Object of model performance metrics
+### Function description:
+###     In light of a discussion with Melanie, this function performs a shuffling of group labels in "dd.frame" and then a random train/test split "rsplit" times.  This aligns how the null distribution is derived and how the observed performance measures are assessed.
+fx_internalPerm <- function(dd.frame, rsplit, measure = 'accuracy', model.type){
 
+    # Check that model specified is supported
+    model.set <- c('logistic', 'rF')
+    if(!model.type %in% model.set){
+        stop(paste0('Specify appropriate model type. Choose from: ', paste0(model.set, collapse = ', ')))
+    }
+    
+    dd.scramble <- fx_scramble(dd.frame)
+    modelOutput <- mclapply(seq(rsplit), function(i) {
+        set.seed(i)
+        fx_model(fx_sample(dd.scramble, nTrainSize, splitType, predvar = predvar), predvar = predvar, model.type = model.type)},
+        mc.cores = 20)
+    modelTable <- fx_cTable(modelOutput)
+    modelTablePerf <- fx_modelPerf(modelTable, make.c_table = F)
+    return(modelTablePerf)
+}
+
+### Function name: fx_nullComparison
+### Function returns:
+###     (1) Observed null distribution values
+###     (2) Observed value
+###     (3) Null p-value
+###     (A) Histogram plot of 1-3
+### Function description:
+###     Returns a histogram of observed values (null distribution) and vertical line of single value (observed value) and null-derived p-value. Function takes (1) either list or array of values describing null distribution ("permObject"), (2) either list or value describing observed measure ("obsObject") and (3) name of measure ("measure") used to read if inputs are list.  Plot object (i.e., histogram of null distribution), observed value and permutation-derived p-value is returned
 fx_nullComparison <- function(permObject, obsObject, measure = 'accuracy'){
     
     # Check that measure is among those in list
@@ -311,6 +418,42 @@ fx_nullComparison <- function(permObject, obsObject, measure = 'accuracy'){
     return(out)
 }
 
+### Function name: fx_popROC
+### Function returns:
+###     (1) prediction object (ROCR related)
+###     (2) performance object (ROCR related)
+### Function description:
+###     Something of a wrapper on the ROCR package.  Derives measures that can be plotted as ROC curve based on set of resamples (or permutations).  Where permutation test is performed, the true "actual.class" is not known from modelObj.  Therefore, "perm.test" must be specified with a reference model object that is assumed to have class specified correctly.  In principle, any permutation test should be a reference for an observed model, meaning an observed model with correct labels should be available.
+fx_popROC <- function(modelObj, measure = 'tpr', x.measure = 'fpr', perm.test = F){
+    
+    label.ordering <- c('Healthy Control', 'Case')
+    
+    # Number of runs in modelObj
+    nruns <- length(modelObj)
+    
+    # Extract all estimated probabilities from modelObj
+    est.prob <- unlist(lapply(seq(nruns), function(i) modelObj[[i]]$pred.prob))
+    
+    # Determine subject-specific names and compute subject-specific mean probability
+    set.names <- unique(names(est.prob))
+    mean.prob <- sapply(set.names, function(i) mean(est.prob[names(est.prob) == i]))
+    
+    # If ROC for permutation is being derived, model object with class correctly specified is used to derive "actual.class"
+    if(!identical(perm.test,F)){
+        all.class <- names(perm.test$predObj@predictions[[1]])
+        actual.class <- unlist(lapply(names(mean.prob), function(i) perm.test$predObj@labels[[1]][names(mean.prob[i]) == all.class]))    
+    } else {
+        all.class <- unlist(lapply(seq(nruns), function(i) modelObj[[i]]$actual))
+        actual.class <- unlist(lapply(set.names, function(i) unique(all.class[names(est.prob) == i])))
+    }
+    
+    # Compute prediction and performance objects
+    predObj <- prediction(mean.prob, actual.class, label.ordering = label.ordering)
+    perfObj <- performance(predObj, measure, x.measure)
+    
+    return(list(predObj = predObj, perfObj = perfObj))
+}
+
 ####
 ## RUN MODELS
 ####
@@ -321,184 +464,95 @@ fx_nullComparison <- function(permObject, obsObject, measure = 'accuracy'){
 
 # fMRI
 predvar <- c("angry_lamy", "angry_ramy", "fear_lamy", "fear_ramy", "neutral_lamy", "neutral_ramy")
-
-# # SB
-# predvar <- c('sb.hb', 'sb.neo')
-# 
-# # DASB
-# predvar <- c('dasb.hb', 'dasb.neo')
-
-###
-## Example code - based on fMRI data
-###
-
-# Standardize variables
 dd <- dd0
 dd[,predvar] <- scale(dd0[,predvar])
 
-# Run functions
+# # # SB
+# predvar <- c('sb.hb', 'sb.neo')
+# dd <- dd_sb
+# dd[,predvar] <- scale(dd[,predvar])
+# 
+# # 
+# # # DASB
+# predvar <- c('dasb.hb', 'dasb.neo')
+# dd <- dd_sb
+# dd[,predvar] <- scale(dd[,predvar])
+
+###
+## Example code - single-run (based on fMRI data)
+###
+
+a.scramble <- fx_scramble(dd)
 a <- fx_sample(dd, 12, 'winter', predvar=predvar)
-b <- fx_rF(a,predvar=predvar)
-c <- fx_logit(a,predvar=predvar)
-d <- fx_modelPerf(b)
+b.logit <- fx_model(a,predvar=predvar, model.type = 'logistic')
+b.rF <- fx_model(a,predvar=predvar, model.type = 'rF')
+c <- fx_modelPerf(b.logit)
 
-# Evaluate performance
-rsplit <- 1000
-rF_rsplit <- lapply(seq(rsplit), 
-             function(i) fx_rF(fx_sample(dd, 12, 'winter', predvar=predvar),predvar=predvar))
+###
+## Example code - evaluate performance (based on fMRI data)
+###
 
-rF_rsplitTable <- matrix(0, nrow = 2, ncol = 2)
-rownames(rF_rsplitTable) <- c('Healthy Control', 'Case')
-colnames(rF_rsplitTable) <- c('Healthy Control', 'Case')
-for (i in seq(rsplit)){
-    rF_rsplitTable <- table(rF_rsplit[[i]]$pred, rF_rsplit[[i]]$actual) + rF_rsplitTable
-}
-print(rF_rsplitTable)
+# Train/Test split
+nTrainSize <- 12
+# Data type to use
+splitType <- 'winter'
 
+## Repeated random splits to derive mean performance
+# n random splits
+rsplit <- 10
+
+# Evaluate performance for each split
+rF_rsplit <- mclapply(seq(rsplit), function(i) fx_model(fx_sample(dd, nTrainSize, splitType, predvar=predvar), predvar=predvar, model.type = 'rF'), mc.cores = 20)
+
+# Contingency table across splits
+rF_rsplitTable <- fx_cTable(rF_rsplit)
+
+# Performance measures across splits
 rsplitPerf <- fx_modelPerf(rF_rsplitTable, make.c_table = F)
 
-# Derive null distribution
-perm <- 10000
-rF_perm <- lapply(seq(perm),
-                 function(i) fx_rF(fx_sample(dd, 12, 'winter', predvar=predvar, perm = T),predvar=predvar))
-rF_permTable <- matrix(0, nrow = 2, ncol = 2)
-rownames(rF_permTable) <- c('Healthy Control', 'Case')
-colnames(rF_permTable) <- c('Healthy Control', 'Case')
-for (i in seq(perm)){
-    rF_permTable <- table(rF_perm[[i]]$pred, rF_perm[[i]]$actual) + rF_permTable
-}
-print(rF_permTable)
+# Generate ROC
+rF.popROC <- fx_popROC(rF_rsplit)
+plot(rF.popROC$perfObj)
 
-# Compute performance measures
+## Permute lablels to derive null distribution
+
+###
+## Random split resampling within each permutation
+###
+
+# n permutations
+perm <- 100
+
+permOutput <- lapply(seq(perm), function(i) fx_internalPerm(dd))
+fx_nullComparison(permOutput, rsplitPerf)
+
+###
+## Old permutation method
+##
+
+### Description: For each permutation ("perm") group labels are shuffled and then ids are divided into train/test groups ("fx_sample").  A model is fit ("fx_model") with "nTrainSize" individuals from each group in the train dataset based on "splitType".  Model is evaluated with unseen observations to derive performance measure.  Performing this "perm" times derives a null distribution against which true observations can be compared.
+
+### Why might this be a problem? Through discussions between Patrick and Melanie, Melanie suggested that this is an imperfect null distribution because each permutation does not assess accuracy for each dataset, only those that happened to be assigned to test group.  As an alternative, she suggested shuffling group labels and then evaluating model "rsplit" times to derive an accuracy measure for a given permutation.  This process would be performed "perm" times to derive a null distribution.
+
+### PMF 20170519
+
+# n permutations
+perm <- 100
+
+# Evaluate performance for each permutation
+rF_perm <- mclapply(seq(perm),function(i) fx_model(fx_sample(dd, nTrainSize, splitType, predvar=predvar, perm = T), predvar=predvar, model.type = 'rF'),mc.cores = 20)
+
+# Permutation contingency table
+rF_permTable <- fx_cTable(rF_perm)
+
+# Permutation performance measures
 rF_permPerf <- lapply(seq(perm),
                   function(i) fx_modelPerf(rF_perm[[i]]))
+rF_perm.popROC <- fx_popROC(rF_perm, perm.test = rF.popROC)
+
+plot(rF.popROC$perfObj, col = 'red')
+plot(rF_perm.popROC$perfObj, add = T, col = 'black')
 
 # Performance measures vs. null distribution
 perfSummary <- fx_nullComparison(rF_permPerf, rsplitPerf, measure = 'accuracy')
-pdf(paste0(out.folder, 'summaryPerformance.pdf'))
-for (measure in c('sensitivity', 'specificity', 'F1', 'accuracy')){
-    fx_nullComparison(rF_permPerf, rsplitPerf, measure = measure)
-}
-dev.off()
 
-
-
-
-
-## Example code - based on SB data
-a <- fx_sample(dd_sb, 5, 'winter', predvar=predvar)
-a <- fx_sample(dd_dasb, 15, 'winter', predvar=predvar)
-
-# SB dataset
-rsplit <- 1000
-rF_out <- lapply(seq(rsplit), 
-                 function(i) fx_rF(fx_sample(dd_sb, 5, 'winter', predvar=predvar),predvar=predvar))
-
-rF_table <- matrix(0, nrow = 2, ncol = 2)
-rownames(rF_table) <- c('Healthy Control', 'Case')
-colnames(rF_table) <- c('Healthy Control', 'Case')
-for (i in seq(rsplit)){
-    rF_table <- table(rF_out[[i]]$pred, rF_out[[i]]$actual) + rF_table
-}
-print(rF_table)
-
-# SB dataset
-rsplit <- 1000
-rF_out <- lapply(seq(rsplit), 
-                 function(i) fx_rF(fx_sample(dd_dasb, 15, 'winter', predvar=predvar),predvar=predvar))
-
-rF_table <- matrix(0, nrow = 2, ncol = 2)
-rownames(rF_table) <- c('Healthy Control', 'Case')
-colnames(rF_table) <- c('Healthy Control', 'Case')
-for (i in seq(rsplit)){
-    rF_table <- table(rF_out[[i]]$pred, rF_out[[i]]$actual) + rF_table
-}
-print(rF_table)
-
-
-# Evaluate significance
-## Derive null distribution (perm ~ 10000)
-##  p = (1+(perm_perf > true_perf)/n
-
-logit_out <- lapply(seq(rsplit), 
-                 function(i) fx_logit(fx_sample(dd_dasb, 15, 'winter', predvar=predvar),predvar=predvar))
-logit_table <- matrix(0, nrow = 2, ncol = 2)
-rownames(logit_table) <- c('Healthy Control', 'Case')
-colnames(logit_table) <- c('Healthy Control', 'Case')
-for (i in seq(rsplit)){
-    logit_table <- table(logit_out[[i]]$pred, logit_out[[i]]$actual) + logit_table
-}
-print(logit_table)
-
-
-####
-## OLD STUFF (MAYBE USEFUL ONE DAY)
-####
-
-### Function returns performance measures associated with prediction models
-### Takes as input number of permutations ("perm")
-
-fx_modelRun <- function(perm){
-    
-    # Performance tables
-    rF_perf <- logit_perf <- 
-        matrix(0, ncol = 2, nrow = 2, 
-               dimnames = list(c('Case', 'HC'), c('Case', 'HC')))
-    
-    # Iteration-by-iteration percent correct.
-    pcorr <- data.frame(rF_perf = rep(0,perm), logit_perf = rep(0,perm))
-    
-    for (i in seq(perm)){
-        
-        # Create Train and Test data.frames
-        df_list <- fx_sample(dd0, 12, 'first', predvar=predvar)
-        
-        # Perform rF and logistic regression
-        rF_out <- fx_rF(df_list, predvar=predvar)
-        logit_out <- fx_logit(df_list, predvar=predvar)
-        
-        # Update rF performance table
-        rF_perf['Case','Case'] <- 
-            rF_perf['Case','Case'] + sum(rF_out$pred == 'Case' & rF_out$y == 'Case')
-        
-        rF_perf['Case','HC'] <- 
-            rF_perf['Case','HC'] + sum(rF_out$pred == 'Case' & rF_out$y == 'Healthy Control')
-        
-        rF_perf['HC','Case'] <- 
-            rF_perf['HC','Case'] + sum(rF_out$pred == 'Healthy Control' & rF_out$y == 'Case')
-        
-        rF_perf['HC','HC'] <- 
-            rF_perf['HC','HC'] + sum(rF_out$pred == 'Healthy Control' & rF_out$y == 'Healthy Control')
-        
-        # Update logit performance table
-        logit_perf['Case','Case'] <- 
-            logit_perf['Case','Case'] + sum(logit_out$pred == 'Case' & logit_out$y == 'Case')
-        
-        logit_perf['Case','HC'] <- 
-            logit_perf['Case','HC'] + sum(logit_out$pred == 'Case' & logit_out$y == 'Healthy Control')
-        
-        logit_perf['HC','Case'] <- 
-            logit_perf['HC','Case'] + sum(logit_out$pred == 'Healthy Control' & logit_out$y == 'Case')
-        
-        logit_perf['HC','HC'] <- 
-            logit_perf['HC','HC'] + sum(logit_out$pred == 'Healthy Control' & logit_out$y == 'Healthy Control')
-        # Update performance tables
-        rF_corr <- sum(rF_out$pred == 'Case' & rF_out$y == 'Case') + sum(rF_out$pred == 'Healthy Control' & rF_out$y == 'Healthy Control')
-        rF_tot <- rF_corr + sum(rF_out$pred == 'Case' & rF_out$y == 'Healthy Control') + sum(rF_out$pred == 'Case' & rF_out$y == 'Healthy Control')
-        logit_corr <- sum(logit_out$pred == 'Case' & logit_out$y == 'Case') + sum(logit_out$pred == 'Healthy Control' & logit_out$y == 'Healthy Control')
-        logit_tot <- logit_corr + sum(logit_out$pred == 'Case' & logit_out$y == 'Healthy Control') + sum(logit_out$pred == 'Healthy Control' & logit_out$y == 'Case')
-        
-        # Update iteration-by-iteration performance arrays
-        pcorr[i,'rF_perf'] <- signif(rF_corr/rF_tot, 4)*100
-        pcorr[i,'logit_perf'] <- signif(logit_corr/logit_tot, 4)*100
-        
-    }
-    
-    # Compute overall performance
-    rF_pcorr <- signif((sum(diag(rF_perf))/sum(rF_perf))*100, 5)
-    logit_pcorr <- signif((sum(diag(logit_perf))/sum(logit_perf))*100, 5)
-    
-    return(list(pcorr = pcorr, 
-                rF_pcorr = rF_pcorr, logit_pcorr = logit_pcorr, 
-                rF_perf = rF_perf, logit_perf = logit_perf))
-}
