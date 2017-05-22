@@ -164,27 +164,7 @@ fx_scramble <- function(dataframe, unique.id = 'cimbi.id', to.scramble = 'group'
 ###     (6) SAD test ids ("sad_test_list"), dataframe
 ### Function description:
 ###     Removes rows from an input "dataframe" based on "criteria" and columns except "outvar" and "predvar". Train and Test dataframes are created based on random sampling with "n" datasets  from each group (Healthy Control & Case) allocated to Train dataframe. That is, Train data.frame is balanced across groups.  Test dataframe consists of remaining datasets (not necessarily balanced).
-fx_sample <- function(dataframe,n,criteria,outvar='group',predvar, perm = F){
-    
-    # If permutation test, scramble group assignment
-    if (perm){
-        # Obtain cimbi.id
-        ids <- unique(dataframe$cimbi.id)
-        # Set of group assignments
-        group_list <- c()
-        for (id in ids){
-            group_list <- c(group_list, unique(dataframe[dataframe$cimbi.id == id,'group']))
-        }
-        
-        # Permuted group assignment
-        new_group_list <- sample(group_list, replace = F)
-        
-        # Update group column to reflect permuted group assignment
-        for (id in ids){
-            new_id <- new_group_list[which(id == ids)]
-            dataframe[dataframe$cimbi.id == id, 'group'] <- new_id
-        }
-    }
+fx_sample <- function(dataframe,n,criteria,outvar='group',predvar){
     
     # Check that criteria specified is supported
     criteria_set <- c('summer', 'winter', 'first', 'random')
