@@ -38,7 +38,7 @@ for (name in names(param)){
     dd <- param[[name]][['df_name']]
     predvar <- param[[name]][['predvar']]
     splitType <- 'winter'
-    # for (splitType in param[[name]][['splitType_set']]){
+    for (splitType in param[[name]][['splitType_set']]){
         
         print(paste0('Working on: ', name, ', ', splitType))
         
@@ -66,15 +66,15 @@ for (name in names(param)){
         
         ## Derive null distribution
         
-        # rF_permOutput <- sapply(seq(perm), function(i) fx_internalPerm(dd, rsplit = rsplit, model.type = 'rF')[measure_set])
-        # pdf(paste0(top, name, '_', splitType, '_', nTrainSize, '_rF2.pdf'))
-        # for (measure in measure_set){
-        #     fx_nullComparison(unlist(rF_permOutput[measure,]), rF_rsplitPerf, measure = measure)
-        # }
-        # dev.off()
+        rF_permOutput <- sapply(seq(perm), function(i) fx_internalPerm(dd, rsplit = rsplit, model.type = 'rF')[measure_set])
+        pdf(paste0(top, name, '_', splitType, '_', nTrainSize, '_rF.pdf'))
+        for (measure in measure_set){
+            fx_nullComparison(unlist(rF_permOutput[measure,]), rF_rsplitPerf, measure = measure)
+        }
+        dev.off()
         
         logistic_permOutput <- sapply(seq(perm), function(i) fx_internalPerm(dd, rsplit = rsplit, model.type = 'logistic')[measure_set])
-        pdf(paste0(top, name, '_', splitType, '_', nTrainSize, '_logistic2.pdf'))
+        pdf(paste0(top, name, '_', splitType, '_', nTrainSize, '_logistic.pdf'))
         for (measure in measure_set){
             fx_nullComparison(unlist(logistic_permOutput[measure,]), logistic_rsplitPerf, measure = measure)
         }
