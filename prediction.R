@@ -1,8 +1,9 @@
 rm(list = ls())
-library('randomForest')
-library('mets')
-library('parallel')
+require('randomForest')
+require('mets')
+require('parallel')
 require('ROCR')
+require('e1071')
 
 out.folder <- '/data1/patrick/fmri/hvi_trio/sad_classification/'
 
@@ -164,11 +165,16 @@ fx_scramble <- function(dataframe, unique.id = 'cimbi.id', to.scramble = 'group'
 ###     (6) SAD test ids ("sad_test_list"), dataframe
 ### Function description:
 ###     Removes rows from an input "dataframe" based on "criteria" and columns except "outvar" and "predvar". Train and Test dataframes are created based on random sampling with "n" datasets  from each group (Healthy Control & Case) allocated to Train dataframe. That is, Train data.frame is balanced across groups.  Test dataframe consists of remaining datasets (not necessarily balanced).
-fx_sample <- function(dataframe,n,criteria,outvar='group',predvar){
+fx_sample <- function(dataframe, n, criteria, outvar='group', predvar=NULL){
+    
+    # Check that predvar is specified
+    if (is.null(predvar)){
+        stop(paste0('ERROR: Predictor variables not specified!'))
+    }
     
     # Check that criteria specified is supported
     criteria_set <- c('summer', 'winter', 'first', 'random')
-    if (!criteria %in% criteria_set){
+    if (!tolower(criteria) %in% criteria_set){
         stop(paste0('Incorrect criteria. Choose from: ', paste0(criteria_set, collapse = ', ')))
     }
     
@@ -230,13 +236,18 @@ fx_sample <- function(dataframe,n,criteria,outvar='group',predvar){
 ### Function description:
 ###     Takes output from fx_sample as input ("df_list"). Runs selected model where "outvar" is predicted based on "predvar" (predictor variables).
 
-fx_model <- function(df_list, outvar='group', predvar, model.type){
+fx_model <- function(df_list, outvar='group', predvar=NULL, model.type=NULL){
+    
+    # Check that predvar and model.type are specified
+    if(is.null(predvar) | is.null(model.type)){
+        stop(paste0('ERROR: Predictor variables or model.type not specified'))
+    }
     
     # Check that model specified is supported
-    model.set <- c('logistic', 'rF')
-    if(!model.type %in% model.set){
+    model.set <- c('logistic', 'rf', 'svm')
+    if(!tolower(model.type) %in% model.set){
         stop(paste0('Specify appropriate model type. Choose from: ', paste0(model.set, collapse = ', ')))
-    }
+    } else {model.type <- tolower(model.type)}
     
     # model
     model.formula <- as.formula(paste(outvar, '~ .'))
@@ -244,8 +255,10 @@ fx_model <- function(df_list, outvar='group', predvar, model.type){
     # Apply model based on model.type
     if (model.type == 'logistic'){
         model <- glm(model.formula, data = df_list$train, family = 'binomial')
-    } else if (model.type == 'rF'){
+    } else if (model.type == 'rf'){
         model <- randomForest(model.formula, data = df_list$train)
+    } else if (model.type == 'svm'){
+        model <- svm(model.formula, data = df_list$train)
     } else {stop(paste0('Cannot apply model.type: ', model.type, '! How did you get this far?!'))}
     
     # Predictors for unseen (test) datasets
@@ -256,9 +269,12 @@ fx_model <- function(df_list, outvar='group', predvar, model.type){
         pred.prob <- predict(model, newdata = x.test, type = 'resp')
         lev <- c('Healthy Control', 'Case')
         pred.class <- factor(lev[as.numeric(pred.prob > 0.5) + 1], levels = c('Healthy Control', 'Case'))
-    } else if (model.type == 'rF'){
+    } else if (model.type == 'rf'){
         pred.class <- predict(model, newdata = x.test, type = 'class')
         pred.prob <- predict(model, newdata = x.test, type = 'prob')[,'Case']
+    } else if (model.type == 'svm'){
+        pred.class <- predict(model, x.test)
+        pred.prob <- NULL
     } else {stop(paste0('Cannot evaluate performance of model.type: ', model.type, '! How did you get this far?!'))}
     
     return(list(pred.class = pred.class, pred.prob = pred.prob, actual = df_list[['test']][,outvar], model = model, type = model.type))
@@ -337,10 +353,10 @@ fx_modelPerf <- function(modelObj, make.c_table = T){
 fx_internalPerm <- function(dd.frame, rsplit, measure = 'accuracy', model.type){
 
     # Check that model specified is supported
-    model.set <- c('logistic', 'rF')
-    if(!model.type %in% model.set){
+    model.set <- c('logistic', 'rf', 'svm')
+    if(!tolower(model.type) %in% model.set){
         stop(paste0('Specify appropriate model type. Choose from: ', paste0(model.set, collapse = ', ')))
-    }
+    } else {model.type <- tolower(model.type)}
     
     dd.scramble <- fx_scramble(dd.frame)
     modelOutput <- mclapply(seq(rsplit), function(i) {
@@ -363,8 +379,8 @@ fx_internalPerm <- function(dd.frame, rsplit, measure = 'accuracy', model.type){
 fx_nullComparison <- function(permObject, obsObject, measure = 'accuracy'){
     
     # Check that measure is among those in list
-    measure_list <- c('sensitivity', 'specificity', 'F1', 'accuracy')
-    if (!measure %in% measure_list){
+    measure_list <- c('sensitivity', 'specificity', 'f1', 'accuracy')
+    if (!tolower(measure) %in% measure_list){
         stop(paste('Please choose measure from:', paste0(measure_list, collapse = ', ')))
     }
     
@@ -465,7 +481,7 @@ dd[,predvar] <- scale(dd0[,predvar])
 a.scramble <- fx_scramble(dd)
 a <- fx_sample(dd, 12, 'winter', predvar=predvar)
 b.logit <- fx_model(a,predvar=predvar, model.type = 'logistic')
-b.rF <- fx_model(a,predvar=predvar, model.type = 'rF')
+b.rF <- fx_model(a,predvar=predvar, model.type = 'rf')
 c <- fx_modelPerf(b.logit)
 
 ###
@@ -482,7 +498,7 @@ splitType <- 'winter'
 rsplit <- 10
 
 # Evaluate performance for each split
-rF_rsplit <- mclapply(seq(rsplit), function(i) fx_model(fx_sample(dd, nTrainSize, splitType, predvar=predvar), predvar=predvar, model.type = 'rF'), mc.cores = 20)
+rF_rsplit <- mclapply(seq(rsplit), function(i) fx_model(fx_sample(dd, nTrainSize, splitType, predvar=predvar), predvar=predvar, model.type = 'rf'), mc.cores = 20)
 
 # Contingency table across splits
 rF_rsplitTable <- fx_cTable(rF_rsplit)
@@ -494,7 +510,7 @@ rsplitPerf <- fx_modelPerf(rF_rsplitTable, make.c_table = F)
 rF.popROC <- fx_popROC(rF_rsplit)
 plot(rF.popROC$perfObj)
 
-## Permute lablels to derive null distribution
+## Permute labels to derive null distribution
 
 ###
 ## Random split resampling within each permutation
@@ -520,7 +536,7 @@ fx_nullComparison(permOutput, rsplitPerf)
 perm <- 100
 
 # Evaluate performance for each permutation
-rF_perm <- mclapply(seq(perm),function(i) fx_model(fx_sample(dd, nTrainSize, splitType, predvar=predvar, perm = T), predvar=predvar, model.type = 'rF'),mc.cores = 20)
+rF_perm <- mclapply(seq(perm),function(i) fx_model(fx_sample(dd, nTrainSize, splitType, predvar=predvar, perm = T), predvar=predvar, model.type = 'rf'),mc.cores = 20)
 
 # Permutation contingency table
 rF_permTable <- fx_cTable(rF_perm)
