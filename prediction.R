@@ -123,7 +123,103 @@ dd_dasb <- cbind(dd_dasb[,c('cimbi.id', 'group', 'season', 'dasb.id', 'sex', 'ag
 ## Load Neuropsych data
 ####
 
-# Insert code here
+###
+## Load SB data
+###
+
+dd_np <- read.csv('/data1/patrick/fmri/hvi_trio/sad_classification/DBproject_SumWin_Neuropsy_MelPat.csv')
+
+# Rename columnes
+colnames(dd_np)[colnames(dd_np) == 'CIMBI.ID'] <- 'cimbi.id'
+colnames(dd_np)[colnames(dd_np) == 'Person.status'] <- 'group'
+colnames(dd_np)[colnames(dd_np) == 'Gender'] <- 'sex'
+colnames(dd_np)[colnames(dd_np) == "Age.at.neuropsych"] <- 'age.np'
+colnames(dd_np)[colnames(dd_np) == "Date.of.neuropsychological.examination"] <- 'np.date'
+colnames(dd_np)[colnames(dd_np) == "SDMT..correct..score"] <- 'sdmt.correct'
+colnames(dd_np)[colnames(dd_np) == "Letter.number.sequencing.total.score"] <- 'lns'
+colnames(dd_np)[colnames(dd_np) == "SRT...Total.mean.reaction.latency"] <- 'srt'
+
+# Determine genotype status
+dd_np$httlpr2 <- factor(dd_np$SLC6A4.5HTTLPR == 'll', labels = c('sx', 'll'))
+dd_np$sert2 <- factor(dd_np$SLC6A4.5HTTLPR == 'll' & dd_np$"SLC6A4.5HTTLPR.A.G..l.allele." == 'AA', labels = c('sx', 'lala'))
+
+# Set variable type
+dd_np$group <- as.character(dd_np$group)
+
+# Determine season for each scan based on sb.scan.date
+dd_np$season <- NA
+for (i in seq(nrow(dd_np))){
+    if (as.numeric(format(as.Date(dd_np[i,'np.date'], '%d/%m/%Y'), '%m')) %in% seq(4,8)){
+        dd_np[i,'season'] <- 'S'
+    } else if((as.numeric(format(as.Date(dd_np[i,'np.date'], '%d/%m/%Y'), '%m')) %in% c(seq(10,12), seq(2)))){
+        dd_np[i,'season'] <- 'W'
+    }
+}
+dd_np$season <- factor(dd_np$season, levels = c('S', 'W'))
+
+### dd_np.srt
+
+dd_np.srt <- subset(dd_np, !is.na(dd_np$srt))
+not2 <- names(table(dd_np.srt$cimbi.id))[table(dd_np.srt$cimbi.id) < 2]
+dd_np.srt <- subset(dd_np.srt, !dd_np.srt$cimbi.id %in% not2)
+
+ids <- names(table(dd_np.srt$cimbi.id))[table(dd_np.srt$cimbi.id) > 2]
+
+for (id in ids){
+    tmp <- dd_np.srt[dd_np.srt$cimbi.id == id, c('cimbi.id', 'np.date', 'srt', 'season')]
+    
+    for (tmpSeason in c('S', 'W')){
+        tmpCimbi.id <- unique(tmp[,'cimbi.id'])
+        nRows <- sum(tmp[,'season'] == tmpSeason)
+        earliestDate <- min(as.Date(tmp[tmp[,'season'] == tmpSeason, 'np.date'], '%d/%m/%Y'))
+        dd_np.srt <- subset(dd_np.srt, !(dd_np.srt$cimbi.id == tmpCimbi.id & as.Date(dd_np.srt$np.date, '%d/%m/%Y') != earliestDate & dd_np.srt$season == tmpSeason))
+    }
+    
+    ## Verbose output
+    # writeLines('Original')
+    # print(tmp)
+    # writeLines('New')
+    # print(dd_np.srt[dd_np.srt$cimbi.id == id,c('cimbi.id', 'np.date', 'srt', 'season')])
+}
+
+# Define first scan based on date
+dd_np.srt$scan_order <- NA
+for (i in unique(dd_np.srt$cimbi.id)){
+    dd_np.srt[which(dd_np.srt$cimbi.id == i), 'scan_order'] <- order(as.Date(dd_np.srt[dd_np.srt$cimbi.id == i, 'np.date'], '%d/%m/%Y'))
+}
+dd_np.srt <- cbind(dd_np.srt[,c('cimbi.id', 'group', 'season', 'sex', 'age.np', 'srt', 'scan_order')])
+
+### dd_np.sdmt_lns
+
+dd_np.sdmt_lns <- subset(dd_np, !is.na(dd_np[,'sdmt.correct']))
+not2 <- names(table(dd_np.sdmt_lns$cimbi.id))[table(dd_np.sdmt_lns$cimbi.id) < 2]
+dd_np.sdmt_lns <- subset(dd_np.sdmt_lns, !dd_np.sdmt_lns$cimbi.id %in% not2)
+
+ids <- names(table(dd_np.sdmt_lns$cimbi.id))[table(dd_np.sdmt_lns$cimbi.id) > 2]
+
+for (id in ids){
+    tmp <- dd_np.sdmt_lns[dd_np.sdmt_lns$cimbi.id == id, c('cimbi.id', 'np.date', 'srt', 'season')]
+    
+    for (tmpSeason in c('S', 'W')){
+        tmpCimbi.id <- unique(tmp[,'cimbi.id'])
+        nRows <- sum(tmp[,'season'] == tmpSeason)
+        earliestDate <- min(as.Date(tmp[tmp[,'season'] == tmpSeason, 'np.date'], '%d/%m/%Y'))
+        dd_np.sdmt_lns <- subset(dd_np.sdmt_lns, !(dd_np.sdmt_lns$cimbi.id == tmpCimbi.id & as.Date(dd_np.sdmt_lns$np.date, '%d/%m/%Y') != earliestDate & dd_np.sdmt_lns$season == tmpSeason))
+    }
+    
+    ## Verbose output
+    # writeLines('Original')
+    # print(tmp)
+    # writeLines('New')
+    # print(dd_np.sdmt_lns[dd_np.sdmt_lns$cimbi.id == id,c('cimbi.id', 'np.date', 'srt', 'season')])
+}
+
+# Define first scan based on date
+dd_np.sdmt_lns$scan_order <- NA
+for (i in unique(dd_np.sdmt_lns$cimbi.id)){
+    dd_np.sdmt_lns[which(dd_np.sdmt_lns$cimbi.id == i), 'scan_order'] <- order(as.Date(dd_np.sdmt_lns[dd_np.sdmt_lns$cimbi.id == i, 'np.date'], '%d/%m/%Y'))
+}
+dd_np.sdmt_lns <- cbind(dd_np.sdmt_lns[,c('cimbi.id', 'group', 'season', 'sex', 'age.np', 'sdmt.correct', 'lns', 'scan_order')])
 
 ####
 ## DEFINE FUNCTIONS
@@ -210,6 +306,13 @@ fx_sample <- function(dataframe, n, criteria, outvar='group', predvar=NULL){
                                  cbind(group = df_sub[sad_test,'group'], df_sub[sad_test, predvar])
     ))
     
+    # Problematic properties if length(predvar) == 1
+    if (length(predvar) == 1){
+        colnames(df_train) <- colnames(df_test) <- c('group', predvar)
+        df_train[,predvar] <- as.numeric(as.character(df_train[,predvar]))
+        df_test[,predvar] <- as.numeric(as.character(df_test[,predvar]))
+    }
+    
     # List of column names to pull
     col.list <- c('cimbi.id', 'mr.id', 'dasb.id', 'sb,id', 'group')
     col.get <- col.list[col.list %in% colnames(dataframe)]
@@ -262,7 +365,7 @@ fx_model <- function(df_list, outvar='group', predvar=NULL, model.type=NULL){
     } else {stop(paste0('Cannot apply model.type: ', model.type, '! How did you get this far?!'))}
     
     # Predictors for unseen (test) datasets
-    x.test <- df_list[['test']][,predvar]
+    x.test <- df_list[['test']][predvar]
     
     # Use model to predict test datasets
     if (model.type == 'logistic'){
@@ -350,7 +453,7 @@ fx_modelPerf <- function(modelObj, make.c_table = T){
 ###     (1) Object of model performance metrics
 ### Function description:
 ###     In light of a discussion with Melanie, this function performs a shuffling of group labels in "dd.frame" and then a random train/test split "rsplit" times.  This aligns how the null distribution is derived and how the observed performance measures are assessed.
-fx_internalPerm <- function(dd.frame, rsplit, measure = 'accuracy', model.type){
+fx_internalPerm <- function(dd.frame, rsplit, measure = 'accuracy', model.type, setSeed = F){
 
     # Check that model specified is supported
     model.set <- c('logistic', 'rf', 'svm')
@@ -358,13 +461,16 @@ fx_internalPerm <- function(dd.frame, rsplit, measure = 'accuracy', model.type){
         stop(paste0('Specify appropriate model type. Choose from: ', paste0(model.set, collapse = ', ')))
     } else {model.type <- tolower(model.type)}
     
-    dd.scramble <- fx_scramble(dd.frame)
+    if (!setSeed){
+        dd.perm <- fx_scramble(dd.frame)
+    } else {
+        set.seed(setSeed)
+        dd.perm <- fx_scramble(dd)
+    }
     modelOutput <- mclapply(seq(rsplit), function(i) {
-        set.seed(i)
-        fx_model(fx_sample(dd.scramble, nTrainSize, splitType, predvar = predvar), predvar = predvar, model.type = model.type)},
-        mc.cores = 20)
-    modelTable <- fx_cTable(modelOutput)
-    modelTablePerf <- fx_modelPerf(modelTable, make.c_table = F)
+        fx_model(fx_sample(dd.perm, nTrainSize, splitType, predvar=predvar), predvar = predvar, model.type = model.type)}, mc.cores = 20)
+        modelTable <- fx_cTable(modelOutput)
+        modelTablePerf <- fx_modelPerf(modelTable, make.c_table = F)
     return(modelTablePerf)
 }
 
@@ -376,7 +482,7 @@ fx_internalPerm <- function(dd.frame, rsplit, measure = 'accuracy', model.type){
 ###     (A) Histogram plot of 1-3
 ### Function description:
 ###     Returns a histogram of observed values (null distribution) and vertical line of single value (observed value) and null-derived p-value. Function takes (1) either list or array of values describing null distribution ("permObject"), (2) either list or value describing observed measure ("obsObject") and (3) name of measure ("measure") used to read if inputs are list.  Plot object (i.e., histogram of null distribution), observed value and permutation-derived p-value is returned
-fx_nullComparison <- function(permObject, obsObject, measure = 'accuracy'){
+fx_nullComparison <- function(permObject, obsObject, measure = 'accuracy', model.type = NULL){
     
     # Check that measure is among those in list
     measure_list <- c('sensitivity', 'specificity', 'f1', 'accuracy')
@@ -401,7 +507,11 @@ fx_nullComparison <- function(permObject, obsObject, measure = 'accuracy'){
     permP <- sum(permDistribution > obsMeasure)/length(permDistribution)
     
     # Generate histogram
-    hist(permDistribution, las = 1, main = paste0('Null distribution: ', measure))
+    if(is.null(model.type)){
+        histTitle <- paste0('Null distribution: ', measure)
+    } else {histTitle <- paste0('Null distribution: ', measure, ' (', model.type, ')')}
+    
+    hist(permDistribution, las = 1, main = histTitle)
     mtext(paste0('obs. perf: ', signif(obsMeasure, 3), '; perm. p-value = ', signif(permP,3)))
     title(sub = paste0('N = ', n, ' permutations'))
     abline(v = obsMeasure, lty = 2, col = 'red')
@@ -551,4 +661,5 @@ plot(rF_perm.popROC$perfObj, add = T, col = 'black')
 
 # Performance measures vs. null distribution
 perfSummary <- fx_nullComparison(rF_permPerf, rsplitPerf, measure = 'accuracy')
+
 
