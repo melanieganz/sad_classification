@@ -5,7 +5,8 @@ require('parallel')
 require('ROCR')
 require('e1071')
 
-out.folder <- '/data1/patrick/fmri/hvi_trio/sad_classification/'
+out.folder <- '/data1/Ganz/Project14/'
+  #'/data1/patrick/fmri/hvi_trio/sad_classification/'
 
 ####
 ## LOAD AND ORGANIZE DATA
@@ -123,22 +124,29 @@ dd_dasb <- cbind(dd_dasb[,c('cimbi.id', 'group', 'season', 'dasb.id', 'sex', 'ag
 ## Load Neuropsych data
 ####
 
-
-###
-## Load SB data
-###
-
 dd_np <- read.csv('/data1/patrick/fmri/hvi_trio/sad_classification/DBproject_SumWin_Neuropsy_MelPat.csv')
 
 # Rename columnes
+
 colnames(dd_np)[colnames(dd_np) == 'CIMBI.ID'] <- 'cimbi.id'
 colnames(dd_np)[colnames(dd_np) == 'Person.status'] <- 'group'
+colnames(dd_np)[colnames(dd_np) == "Date.of.neuropsychological.examination"] <- 'np.date'
+colnames(dd_np)[colnames(dd_np) == "Date.of.NEO.P.IR.examination"] <- 'np.date.neopir'
+# Covariates
 colnames(dd_np)[colnames(dd_np) == 'Gender'] <- 'sex'
 colnames(dd_np)[colnames(dd_np) == "Age.at.neuropsych"] <- 'age.np'
-colnames(dd_np)[colnames(dd_np) == "Date.of.neuropsychological.examination"] <- 'np.date'
+colnames(dd_np)[colnames(dd_np) == "Rist.-.Index"] <- 'IQ'
+colnames(dd_np)[colnames(dd_np) == "MDI"] <- 'MDI'
+# Livs paper
 colnames(dd_np)[colnames(dd_np) == "SDMT..correct..score"] <- 'sdmt.correct'
 colnames(dd_np)[colnames(dd_np) == "Letter.number.sequencing.total.score"] <- 'lns'
 colnames(dd_np)[colnames(dd_np) == "SRT...Total.mean.reaction.latency"] <- 'srt'
+# Deas paper                        
+colnames(dd_np)[colnames(dd_np) == "N..Neuroticism"] <- 'neopir.neuroticism'
+colnames(dd_np)[colnames(dd_np) == "E..Extraversion"] <- 'neopir.extraversion'
+colnames(dd_np)[colnames(dd_np) == "O..Openness"] <- 'neopir.openness'
+colnames(dd_np)[colnames(dd_np) == "A..Agreeableness"] <- 'neopir.agreeableness'
+colnames(dd_np)[colnames(dd_np) == "C..Conscientiousness"] <- 'neopir.conscientiousness'
 
 # Determine genotype status
 dd_np$httlpr2 <- factor(dd_np$SLC6A4.5HTTLPR == 'll', labels = c('sx', 'll'))
@@ -147,7 +155,7 @@ dd_np$sert2 <- factor(dd_np$SLC6A4.5HTTLPR == 'll' & dd_np$"SLC6A4.5HTTLPR.A.G..
 # Set variable type
 dd_np$group <- as.character(dd_np$group)
 
-# Determine season for each scan based on sb.scan.date
+# Determine season for each scan based on SRT,SDMT and LNS date
 dd_np$season <- NA
 for (i in seq(nrow(dd_np))){
     if (as.numeric(format(as.Date(dd_np[i,'np.date'], '%d/%m/%Y'), '%m')) %in% seq(4,8)){
@@ -157,6 +165,18 @@ for (i in seq(nrow(dd_np))){
     }
 }
 dd_np$season <- factor(dd_np$season, levels = c('S', 'W'))
+
+# Determine season for each scan based on NEOPIR date
+
+dd_np$season2 <- NA
+for (i in seq(nrow(dd_np))){
+  if (as.numeric(format(as.Date(dd_np[i,'np.date.neopir'], '%d/%m/%Y'), '%m')) %in% seq(4,8)){
+    dd_np[i,'season2'] <- 'S'
+  } else if((as.numeric(format(as.Date(dd_np[i,'np.date.neopir'], '%d/%m/%Y'), '%m')) %in% c(seq(10,12), seq(2)))){
+    dd_np[i,'season2'] <- 'W'
+  }
+}
+dd_np$season2 <- factor(dd_np$season2, levels = c('S', 'W'))
 
 ### dd_np.srt
 
@@ -221,6 +241,257 @@ for (i in unique(dd_np.sdmt_lns$cimbi.id)){
     dd_np.sdmt_lns[which(dd_np.sdmt_lns$cimbi.id == i), 'scan_order'] <- order(as.Date(dd_np.sdmt_lns[dd_np.sdmt_lns$cimbi.id == i, 'np.date'], '%d/%m/%Y'))
 }
 dd_np.sdmt_lns <- cbind(dd_np.sdmt_lns[,c('cimbi.id', 'group', 'season', 'sex', 'age.np', 'sdmt.correct', 'lns', 'scan_order')])
+
+### dd_np.neopir.neuroticism
+
+dd_np.neopir.neuroticism <- subset(dd_np, !is.na(dd_np$neopir.neuroticism))
+not2 <- names(table(dd_np.neopir.neuroticism$cimbi.id))[table(dd_np.neopir.neuroticism$cimbi.id) < 2]
+dd_np.neopir.neuroticism <- subset(dd_np.neopir.neuroticism, !dd_np.neopir.neuroticism$cimbi.id %in% not2)
+
+ids <- unique(dd_np.neopir.neuroticism$cimbi.id)
+
+for (id in ids){
+  tmp <- dd_np.neopir.neuroticism[dd_np.neopir.neuroticism$cimbi.id == id, c('cimbi.id', 'np.date.neopir', 'neopir.neuroticism', 'season2')]
+  
+  ## Verbose output
+  #writeLines('Original')
+  #print(tmp)
+  
+  if (length(unique(tmp[,'season2'])) == 1) {
+    dd_np.neopir.neuroticism <- subset(dd_np.neopir.neuroticism, dd_np.neopir.neuroticism$cimbi.id != tmp$cimbi.id)
+    next
+  } 
+  
+  dateMult = names(table(tmp$date.neopir))[table(tmp$np.date.neopir)>1]
+  
+  if (length(dateMult)){
+    for (dMult in dateMult){
+      rowId = which(dd_np.neopir.neuroticism$cimbi.id==id)
+      removeRow = rowId[dd_np.neopir.neuroticism$np.date.neopir[rowId]==dMult][-1]
+      dd_np.neopir.neuroticism <- dd_np.neopir.neuroticism[-removeRow,]
+    }
+    tmp <- dd_np.neopir.neuroticism[dd_np.neopir.neuroticism$cimbi.id == id, c('cimbi.id', 'np.date.neopir', 'neopir.neuroticism', 'season2')]
+  }
+  
+  for (tmpSeason in c('S', 'W')){
+    tmpCimbi.id <- unique(tmp[,'cimbi.id'])
+    nRows <- sum(tmp[,'season2'] == tmpSeason)
+    earliestDate <- min(as.Date(tmp[tmp[,'season2'] == tmpSeason, 'np.date.neopir'], '%d/%m/%Y'))
+    dd_np.neopir.neuroticism <- subset(dd_np.neopir.neuroticism, !(dd_np.neopir.neuroticism$cimbi.id == tmpCimbi.id & as.Date(dd_np.neopir.neuroticism$np.date.neopir, '%d/%m/%Y') != earliestDate & dd_np.neopir.neuroticism$season == tmpSeason))
+  }
+  
+  ## Verbose output
+  #writeLines('New')
+  #print(dd_np.neopir.neuroticism[dd_np.neopir.neuroticism$cimbi.id == id,c('cimbi.id', 'date.neopir', 'neopir.neuroticism', 'season2')])
+}
+
+# Define first scan based on date
+dd_np.neopir.neuroticism$scan_order <- NA
+for (i in unique(dd_np.neopir.neuroticism$cimbi.id)){
+  dd_np.neopir.neuroticism[which(dd_np.neopir.neuroticism$cimbi.id == i), 'scan_order'] <- order(as.Date(dd_np.neopir.neuroticism[dd_np.neopir.neuroticism$cimbi.id == i, 'np.date.neopir'], '%d/%m/%Y'))
+}
+dd_np.neopir.neuroticism <- cbind(dd_np.neopir.neuroticism[,c('cimbi.id', 'group', 'season2', 'sex', 'age.np', 'neopir.neuroticism', 'scan_order')])
+
+### dd_np.neopir.extraversion
+
+dd_np.neopir.extraversion <- subset(dd_np, !is.na(dd_np$neopir.extraversion))
+not2 <- names(table(dd_np.neopir.extraversion$cimbi.id))[table(dd_np.neopir.extraversion$cimbi.id) < 2]
+dd_np.neopir.extraversion <- subset(dd_np.neopir.extraversion, !dd_np.neopir.extraversion$cimbi.id %in% not2)
+
+ids <- unique(dd_np.neopir.extraversion$cimbi.id)
+
+for (id in ids){
+  tmp <- dd_np.neopir.extraversion[dd_np.neopir.extraversion$cimbi.id == id, c('cimbi.id', 'np.date.neopir', 'neopir.extraversion', 'season2')]
+  
+  ## Verbose output
+  #writeLines('Original')
+  #print(tmp)
+  
+  if (length(unique(tmp[,'season2'])) == 1) {
+    dd_np.neopir.extraversion <- subset(dd_np.neopir.extraversion, dd_np.neopir.extraversion$cimbi.id != tmp$cimbi.id)
+    next
+  } 
+  
+  dateMult = names(table(tmp$np.date.neopir))[table(tmp$np.date.neopir)>1]
+  
+  if (length(dateMult)){
+    for (dMult in dateMult){
+      rowId = which(dd_np.neopir.extraversion$cimbi.id==id)
+      removeRow = rowId[dd_np.neopir.extraversion$np.date.neopir[rowId]==dMult][-1]
+      dd_np.neopir.extraversion <- dd_np.neopir.extraversion[-removeRow,]
+    }
+    tmp <- dd_np.neopir.extraversion[dd_np.neopir.extraversion$cimbi.id == id, c('cimbi.id', 'np.date.neopir', 'neopir.extraversion', 'season2')]
+  }
+  
+  for (tmpSeason in c('S', 'W')){
+    tmpCimbi.id <- unique(tmp[,'cimbi.id'])
+    nRows <- sum(tmp[,'season2'] == tmpSeason)
+    earliestDate <- min(as.Date(tmp[tmp[,'season2'] == tmpSeason, 'np.date.neopir'], '%d/%m/%Y'))
+    dd_np.neopir.extraversion <- subset(dd_np.neopir.extraversion, !(dd_np.neopir.extraversion$cimbi.id == tmpCimbi.id & as.Date(dd_np.neopir.extraversion$np.date.neopir, '%d/%m/%Y') != earliestDate & dd_np.neopir.extraversion$season == tmpSeason))
+  }
+  
+  ## Verbose output
+  #writeLines('New')
+  #print(dd_np.neopir.extraversion[dd_np.neopir.extraversion$cimbi.id == id,c('cimbi.id', 'np.date.neopir', 'neopir.extraversion', 'season2')])
+}
+
+# Define first scan based on date
+dd_np.neopir.extraversion$scan_order <- NA
+for (i in unique(dd_np.neopir.extraversion$cimbi.id)){
+  dd_np.neopir.extraversion[which(dd_np.neopir.extraversion$cimbi.id == i), 'scan_order'] <- order(as.Date(dd_np.neopir.extraversion[dd_np.neopir.extraversion$cimbi.id == i, 'np.date'], '%d/%m/%Y'))
+}
+dd_np.neopir.extraversion <- cbind(dd_np.neopir.extraversion[,c('cimbi.id', 'group', 'season2', 'sex', 'age.np', 'neopir.extraversion', 'scan_order')])
+
+### dd_np.neopir.openness
+
+dd_np.neopir.openness <- subset(dd_np, !is.na(dd_np$neopir.openness))
+not2 <- names(table(dd_np.neopir.openness$cimbi.id))[table(dd_np.neopir.openness$cimbi.id) < 2]
+dd_np.neopir.openness <- subset(dd_np.neopir.openness, !dd_np.neopir.openness$cimbi.id %in% not2)
+
+ids <- unique(dd_np.neopir.openness$cimbi.id)
+
+for (id in ids){
+  tmp <- dd_np.neopir.openness[dd_np.neopir.openness$cimbi.id == id, c('cimbi.id', 'np.date.neopir', 'neopir.openness', 'season2')]
+  
+  ## Verbose output
+  #writeLines('Original')
+  #print(tmp)
+  
+  if (length(unique(tmp[,'season2'])) == 1) {
+    dd_np.neopir.openness <- subset(dd_np.neopir.openness, dd_np.neopir.openness$cimbi.id != tmp$cimbi.id)
+    next
+  } 
+  
+  dateMult = names(table(tmp$np.date.neopir))[table(tmp$np.date.neopir)>1]
+  
+  if (length(dateMult)){
+    for (dMult in dateMult){
+      rowId = which(dd_np.neopir.openness$cimbi.id==id)
+      removeRow = rowId[dd_np.neopir.openness$np.date.neopir[rowId]==dMult][-1]
+      dd_np.neopir.openness <- dd_np.neopir.openness[-removeRow,]
+    }
+    tmp <- dd_np.neopir.openness[dd_np.neopir.openness$cimbi.id == id, c('cimbi.id', 'np.date.neopir', 'neopir.openness', 'season2')]
+  }
+  
+  for (tmpSeason in c('S', 'W')){
+    tmpCimbi.id <- unique(tmp[,'cimbi.id'])
+    nRows <- sum(tmp[,'season2'] == tmpSeason)
+    earliestDate <- min(as.Date(tmp[tmp[,'season2'] == tmpSeason, 'np.date.neopir'], '%d/%m/%Y'))
+    dd_np.neopir.openness <- subset(dd_np.neopir.openness, !(dd_np.neopir.openness$cimbi.id == tmpCimbi.id & as.Date(dd_np.neopir.openness$np.date.neopir, '%d/%m/%Y') != earliestDate & dd_np.neopir.openness$season == tmpSeason))
+  }
+  
+  ## Verbose output
+  #writeLines('New')
+  #print(dd_np.neopir.openness[dd_np.neopir.openness$cimbi.id == id,c('cimbi.id', 'np.date.neopir', 'neopir.openness', 'season2')])
+}
+
+# Define first scan based on date
+dd_np.neopir.openness$scan_order <- NA
+for (i in unique(dd_np.neopir.openness$cimbi.id)){
+  dd_np.neopir.openness[which(dd_np.neopir.openness$cimbi.id == i), 'scan_order'] <- order(as.Date(dd_np.neopir.openness[dd_np.neopir.openness$cimbi.id == i, 'np.date'], '%d/%m/%Y'))
+}
+dd_np.neopir.openness <- cbind(dd_np.neopir.openness[,c('cimbi.id', 'group', 'season2', 'sex', 'age.np', 'neopir.openness', 'scan_order')])
+
+### dd_np.neopir.agreeableness
+
+dd_np.neopir.agreeableness <- subset(dd_np, !is.na(dd_np$neopir.agreeableness))
+not2 <- names(table(dd_np.neopir.agreeableness$cimbi.id))[table(dd_np.neopir.agreeableness$cimbi.id) < 2]
+dd_np.neopir.agreeableness <- subset(dd_np.neopir.agreeableness, !dd_np.neopir.agreeableness$cimbi.id %in% not2)
+
+ids <- unique(dd_np.neopir.agreeableness$cimbi.id)
+
+for (id in ids){
+  tmp <- dd_np.neopir.agreeableness[dd_np.neopir.agreeableness$cimbi.id == id, c('cimbi.id', 'np.date.neopir', 'neopir.agreeableness', 'season2')]
+  
+  ## Verbose output
+  #writeLines('Original')
+  #print(tmp)
+  
+  if (length(unique(tmp[,'season2'])) == 1) {
+    dd_np.neopir.agreeableness <- subset(dd_np.neopir.agreeableness, dd_np.neopir.agreeableness$cimbi.id != tmp$cimbi.id)
+    next
+  } 
+  
+  dateMult = names(table(tmp$np.date.neopir))[table(tmp$np.date.neopir)>1]
+  
+  if (length(dateMult)){
+    for (dMult in dateMult){
+      rowId = which(dd_np.neopir.agreeableness$cimbi.id==id)
+      removeRow = rowId[dd_np.neopir.agreeableness$np.date.neopir[rowId]==dMult][-1]
+      dd_np.neopir.agreeableness <- dd_np.neopir.agreeableness[-removeRow,]
+    }
+    tmp <- dd_np.neopir.agreeableness[dd_np.neopir.agreeableness$cimbi.id == id, c('cimbi.id', 'np.date.neopir', 'neopir.agreeableness', 'season2')]
+  }
+  
+  for (tmpSeason in c('S', 'W')){
+    tmpCimbi.id <- unique(tmp[,'cimbi.id'])
+    nRows <- sum(tmp[,'season2'] == tmpSeason)
+    earliestDate <- min(as.Date(tmp[tmp[,'season2'] == tmpSeason, 'np.date.neopir'], '%d/%m/%Y'))
+    dd_np.neopir.agreeableness <- subset(dd_np.neopir.agreeableness, !(dd_np.neopir.agreeableness$cimbi.id == tmpCimbi.id & as.Date(dd_np.neopir.agreeableness$np.date.neopir, '%d/%m/%Y') != earliestDate & dd_np.neopir.agreeableness$season == tmpSeason))
+  }
+  
+  ## Verbose output
+  #writeLines('New')
+  #print(dd_np.neopir.agreeableness[dd_np.neopir.agreeableness$cimbi.id == id,c('cimbi.id', 'np.date.neopir', 'neopir.agreeableness', 'season2')])
+}
+
+# Define first scan based on date
+dd_np.neopir.agreeableness$scan_order <- NA
+for (i in unique(dd_np.neopir.agreeableness$cimbi.id)){
+  dd_np.neopir.agreeableness[which(dd_np.neopir.agreeableness$cimbi.id == i), 'scan_order'] <- order(as.Date(dd_np.neopir.agreeableness[dd_np.neopir.agreeableness$cimbi.id == i, 'np.date'], '%d/%m/%Y'))
+}
+dd_np.neopir.agreeableness <- cbind(dd_np.neopir.agreeableness[,c('cimbi.id', 'group', 'season2', 'sex', 'age.np', 'neopir.agreeableness', 'scan_order')])
+
+### dd_np.neopir.conscientiousness
+
+dd_np.neopir.conscientiousness <- subset(dd_np, !is.na(dd_np$neopir.conscientiousness))
+not2 <- names(table(dd_np.neopir.conscientiousness$cimbi.id))[table(dd_np.neopir.conscientiousness$cimbi.id) < 2]
+dd_np.neopir.conscientiousness <- subset(dd_np.neopir.conscientiousness, !dd_np.neopir.conscientiousness$cimbi.id %in% not2)
+
+ids <- unique(dd_np.neopir.conscientiousness$cimbi.id)
+
+for (id in ids){
+  tmp <- dd_np.neopir.conscientiousness[dd_np.neopir.conscientiousness$cimbi.id == id, c('cimbi.id', 'np.date.neopir', 'neopir.conscientiousness', 'season2')]
+  
+  ## Verbose output
+  #writeLines('Original')
+  #print(tmp)
+  
+  if (length(unique(tmp[,'season2'])) == 1) {
+    dd_np.neopir.conscientiousness <- subset(dd_np.neopir.conscientiousness, dd_np.neopir.conscientiousness$cimbi.id != tmp$cimbi.id)
+    next
+  } 
+  
+  dateMult = names(table(tmp$np.date.neopir))[table(tmp$np.date.neopir)>1]
+  
+  if (length(dateMult)){
+    for (dMult in dateMult){
+      rowId = which(dd_np.neopir.conscientiousness$cimbi.id==id)
+      removeRow = rowId[dd_np.neopir.conscientiousness$np.date.neopir[rowId]==dMult][-1]
+      dd_np.neopir.conscientiousness <- dd_np.neopir.conscientiousness[-removeRow,]
+    }
+    tmp <- dd_np.neopir.conscientiousness[dd_np.neopir.conscientiousness$cimbi.id == id, c('cimbi.id', 'np.date.neopir', 'neopir.conscientiousness', 'season2')]
+  }
+  
+  for (tmpSeason in c('S', 'W')){
+    tmpCimbi.id <- unique(tmp[,'cimbi.id'])
+    nRows <- sum(tmp[,'season2'] == tmpSeason)
+    earliestDate <- min(as.Date(tmp[tmp[,'season2'] == tmpSeason, 'np.date.neopir'], '%d/%m/%Y'))
+    dd_np.neopir.conscientiousness <- subset(dd_np.neopir.conscientiousness, !(dd_np.neopir.conscientiousness$cimbi.id == tmpCimbi.id & as.Date(dd_np.neopir.conscientiousness$np.date.neopir, '%d/%m/%Y') != earliestDate & dd_np.neopir.conscientiousness$season == tmpSeason))
+  }
+  
+  ## Verbose output
+  #writeLines('New')
+  #print(dd_np.neopir.conscientiousness[dd_np.neopir.conscientiousness$cimbi.id == id,c('cimbi.id', 'np.date.neopir', 'neopir.conscientiousness', 'season2')])
+}
+
+# Define first scan based on date
+dd_np.neopir.conscientiousness$scan_order <- NA
+for (i in unique(dd_np.neopir.conscientiousness$cimbi.id)){
+  dd_np.neopir.conscientiousness[which(dd_np.neopir.conscientiousness$cimbi.id == i), 'scan_order'] <- order(as.Date(dd_np.neopir.conscientiousness[dd_np.neopir.conscientiousness$cimbi.id == i, 'np.date'], '%d/%m/%Y'))
+}
+dd_np.neopir.conscientiousness <- cbind(dd_np.neopir.conscientiousness[,c('cimbi.id', 'group', 'season2', 'sex', 'age.np', 'neopir.conscientiousness', 'scan_order')])
+
 
 ####
 ## DEFINE FUNCTIONS
