@@ -292,6 +292,9 @@ for (i in unique(dd_np.neopir.neuroticism$cimbi.id)){
 }
 dd_np.neopir.neuroticism <- cbind(dd_np.neopir.neuroticism[,c('cimbi.id', 'group', 'season2', 'sex', 'age.np', 'neopir.neuroticism', 'scan_order')])
 
+names(dd_np.neopir.neuroticism) <- sub("^season2$","season",names(dd_np.neopir.neuroticism))
+
+
 ### dd_np.neopir.extraversion
 
 dd_np.neopir.extraversion <- subset(dd_np, !is.na(dd_np$neopir.extraversion))
@@ -341,6 +344,8 @@ for (i in unique(dd_np.neopir.extraversion$cimbi.id)){
   dd_np.neopir.extraversion[which(dd_np.neopir.extraversion$cimbi.id == i), 'scan_order'] <- order(as.Date(dd_np.neopir.extraversion[dd_np.neopir.extraversion$cimbi.id == i, 'np.date'], '%d/%m/%Y'))
 }
 dd_np.neopir.extraversion <- cbind(dd_np.neopir.extraversion[,c('cimbi.id', 'group', 'season2', 'sex', 'age.np', 'neopir.extraversion', 'scan_order')])
+
+names(dd_np.neopir.extraversion) <- sub("^season2$","season",names(dd_np.neopir.extraversion))
 
 ### dd_np.neopir.openness
 
@@ -392,6 +397,8 @@ for (i in unique(dd_np.neopir.openness$cimbi.id)){
 }
 dd_np.neopir.openness <- cbind(dd_np.neopir.openness[,c('cimbi.id', 'group', 'season2', 'sex', 'age.np', 'neopir.openness', 'scan_order')])
 
+names(dd_np.neopir.openness) <- sub("^season2$","season",names(dd_np.neopir.openness))
+
 ### dd_np.neopir.agreeableness
 
 dd_np.neopir.agreeableness <- subset(dd_np, !is.na(dd_np$neopir.agreeableness))
@@ -441,6 +448,8 @@ for (i in unique(dd_np.neopir.agreeableness$cimbi.id)){
   dd_np.neopir.agreeableness[which(dd_np.neopir.agreeableness$cimbi.id == i), 'scan_order'] <- order(as.Date(dd_np.neopir.agreeableness[dd_np.neopir.agreeableness$cimbi.id == i, 'np.date'], '%d/%m/%Y'))
 }
 dd_np.neopir.agreeableness <- cbind(dd_np.neopir.agreeableness[,c('cimbi.id', 'group', 'season2', 'sex', 'age.np', 'neopir.agreeableness', 'scan_order')])
+
+names(dd_np.neopir.agreeableness) <- sub("^season2$","season",names(dd_np.neopir.agreeableness))
 
 ### dd_np.neopir.conscientiousness
 
@@ -492,6 +501,7 @@ for (i in unique(dd_np.neopir.conscientiousness$cimbi.id)){
 }
 dd_np.neopir.conscientiousness <- cbind(dd_np.neopir.conscientiousness[,c('cimbi.id', 'group', 'season2', 'sex', 'age.np', 'neopir.conscientiousness', 'scan_order')])
 
+names(dd_np.neopir.conscientiousness) <- sub("^season2$","season",names(dd_np.neopir.conscientiousness))
 
 ####
 ## DEFINE FUNCTIONS
@@ -891,47 +901,3 @@ rsplitPerf <- fx_modelPerf(rF_rsplitTable, make.c_table = F)
 # Generate ROC
 rF.popROC <- fx_popROC(rF_rsplit)
 plot(rF.popROC$perfObj)
-
-## Permute labels to derive null distribution
-
-###
-## Random split resampling within each permutation
-###
-
-# n permutations
-perm <- 100
-
-permOutput <- lapply(seq(perm), function(i) fx_internalPerm(dd))
-fx_nullComparison(permOutput, rsplitPerf)
-
-###
-## Old permutation method
-##
-
-### Description: For each permutation ("perm") group labels are shuffled and then ids are divided into train/test groups ("fx_sample").  A model is fit ("fx_model") with "nTrainSize" individuals from each group in the train dataset based on "splitType".  Model is evaluated with unseen observations to derive performance measure.  Performing this "perm" times derives a null distribution against which true observations can be compared.
-
-### Why might this be a problem? Through discussions between Patrick and Melanie, Melanie suggested that this is an imperfect null distribution because each permutation does not assess accuracy for each dataset, only those that happened to be assigned to test group.  As an alternative, she suggested shuffling group labels and then evaluating model "rsplit" times to derive an accuracy measure for a given permutation.  This process would be performed "perm" times to derive a null distribution.
-
-### PMF 20170519
-
-# n permutations
-perm <- 100
-
-# Evaluate performance for each permutation
-rF_perm <- mclapply(seq(perm),function(i) fx_model(fx_sample(dd, nTrainSize, splitType, predvar=predvar, perm = T), predvar=predvar, model.type = 'rf'),mc.cores = 20)
-
-# Permutation contingency table
-rF_permTable <- fx_cTable(rF_perm)
-
-# Permutation performance measures
-rF_permPerf <- lapply(seq(perm),
-                  function(i) fx_modelPerf(rF_perm[[i]]))
-rF_perm.popROC <- fx_popROC(rF_perm, perm.test = rF.popROC)
-
-plot(rF.popROC$perfObj, col = 'red')
-plot(rF_perm.popROC$perfObj, add = T, col = 'black')
-
-# Performance measures vs. null distribution
-perfSummary <- fx_nullComparison(rF_permPerf, rsplitPerf, measure = 'accuracy')
-
-

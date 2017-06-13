@@ -3,26 +3,27 @@
 ####
 
 param <- list()
-# param$fMRI <- list()
-# param$fMRI$df_name <- dd0
-# param$fMRI$nTrainSize <- 16
-# param$fMRI$splitType_set <- c('winter', 'summer', 'first', 'random')
-# param$fMRI$predvar <- c("angry_lamy", "angry_ramy", "fear_lamy", "fear_ramy", "neutral_lamy", "neutral_ramy")
-# param$fMRI$df_name[,param$fMRI$predvar] <- scale(param$fMRI$df_name[,param$fMRI$predvar])
 
-# param$SB <- list()
-# param$SB$df_name <- dd_sb
-# param$SB$nTrainSize <- 5
-# param$SB$splitType_set <- c('winter', 'summer', 'first', 'random')
-# param$SB$predvar <- c('sb.hb', 'sb.neo')
-# param$SB$df_name[,param$SB$predvar] <- scale(param$SB$df_name[,param$SB$predvar])
+param$fMRI <- list()
+param$fMRI$df_name <- dd0
+param$fMRI$nTrainSize <- 16
+param$fMRI$splitType_set <- c('winter', 'summer', 'first', 'random')
+param$fMRI$predvar <- c("angry_lamy", "angry_ramy", "fear_lamy", "fear_ramy", "neutral_lamy", "neutral_ramy")
+param$fMRI$df_name[,param$fMRI$predvar] <- scale(param$fMRI$df_name[,param$fMRI$predvar])
+
+param$SB <- list()
+param$SB$df_name <- dd_sb
+param$SB$nTrainSize <- 5
+param$SB$splitType_set <- c('winter', 'summer', 'first', 'random')
+param$SB$predvar <- c('sb.hb', 'sb.neo')
+param$SB$df_name[,param$SB$predvar] <- scale(param$SB$df_name[,param$SB$predvar])
  
-# param$DASB <- list()
-# param$DASB$df_name <- dd_dasb
-# param$DASB$nTrainSize <- 15
-# param$DASB$splitType_set <- c('winter', 'summer', 'first', 'random')
-# param$DASB$predvar <- c('dasb.hb', 'dasb.neo')
-# param$DASB$df_name[,param$DASB$predvar] <- scale(param$DASB$df_name[,param$DASB$predvar])
+param$DASB <- list()
+param$DASB$df_name <- dd_dasb
+param$DASB$nTrainSize <- 15
+param$DASB$splitType_set <- c('winter', 'summer', 'first', 'random')
+param$DASB$predvar <- c('dasb.hb', 'dasb.neo')
+param$DASB$df_name[,param$DASB$predvar] <- scale(param$DASB$df_name[,param$DASB$predvar])
 
 param$srt <- list()
 param$srt$df_name <- dd_np.srt
@@ -31,18 +32,61 @@ param$srt$splitType_set <- c('winter', 'summer', 'first', 'random')
 param$srt$predvar <- c("srt")
 param$srt$df_name[,param$srt$predvar] <- scale(param$srt$df_name[,param$srt$predvar])
 
+param$sdmt_lns <- list()
+param$sdmt_lns$df_name <- dd_np.sdmt_lns
+param$sdmt_lns$nTrainSize <- 20
+param$sdmt_lns$splitType_set <- c('winter', 'summer', 'first', 'random')
+param$sdmt_lns$predvar <- c('sdmt.correct','lns')
+param$sdmt_lns$df_name[,param$sdmt_lns$predvar] <- scale(param$sdmt_lns$df_name[,param$sdmt_lns$predvar])
+
+param$neopir.neuroticism <- list()
+param$neopir.neuroticism$df_name <- dd_np.neopir.neuroticism
+param$neopir.neuroticism$nTrainSize <- 20
+param$neopir.neuroticism$splitType_set <- c('winter', 'summer', 'first', 'random')
+param$neopir.neuroticism$predvar <- c("neopir.neuroticism")
+param$neopir.neuroticism$df_name[,param$neopir.neuroticism$predvar] <- scale(param$neopir.neuroticism$df_name[,param$neopir.neuroticism$predvar])
+
+param$neopir.extraversion <- list()
+param$neopir.extraversion$df_name <- dd_np.neopir.extraversion
+param$neopir.extraversion$nTrainSize <- 20
+param$neopir.extraversion$splitType_set <- c('winter', 'summer', 'first', 'random')
+param$neopir.extraversion$predvar <- c("neopir.extraversion")
+param$neopir.extraversion$df_name[,param$neopir.extraversion$predvar] <- scale(param$neopir.extraversion$df_name[,param$neopir.extraversion$predvar])
+
+param$neopir.openness <- list()
+param$neopir.openness$df_name <- dd_np.neopir.openness
+param$neopir.openness$nTrainSize <- 20
+param$neopir.openness$splitType_set <- c('winter', 'summer', 'first', 'random')
+param$neopir.openness$predvar <- c("neopir.openness")
+param$neopir.openness$df_name[,param$neopir.openness$predvar] <- scale(param$neopir.openness$df_name[,param$neopir.openness$predvar])
+
+param$neopir.agreeableness <- list()
+param$neopir.agreeableness$df_name <- dd_np.neopir.agreeableness
+param$neopir.agreeableness$nTrainSize <- 20
+param$neopir.agreeableness$splitType_set <- c('winter', 'summer', 'first', 'random')
+param$neopir.agreeableness$predvar <- c("neopir.agreeableness")
+param$neopir.agreeableness$df_name[,param$neopir.agreeableness$predvar] <- scale(param$neopir.agreeableness$df_name[,param$neopir.agreeableness$predvar])
+
+param$neopir.conscientiousness <- list()
+param$neopir.conscientiousness$df_name <- dd_np.neopir.conscientiousness
+param$neopir.conscientiousness$nTrainSize <- 20
+param$neopir.conscientiousness$splitType_set <- c('winter', 'summer', 'first', 'random')
+param$neopir.conscientiousness$predvar <- c("neopir.conscientiousness")
+param$neopir.conscientiousness$df_name[,param$neopir.conscientiousness$predvar] <- scale(param$neopir.conscientiousness$df_name[,param$neopir.conscientiousness$predvar])
+
+
 ####
 ## ANALYSIS
 ####
 
 # Output directory
-top <- '/data1/patrick/fmri/hvi_trio/sad_classification/'
+top <- '/data1/Ganz/Project14/Rresults/' #'/data1/patrick/fmri/hvi_trio/sad_classification/'
 
 # n random splits
 rsplit <- 100
 
 # n permutations
-perm <- 10000
+perm <- 1000
 
 startTime <- Sys.time()
 print(startTime)
@@ -52,7 +96,7 @@ for (name in names(param)){
     
     nTrainSize <- param[[name]]$nTrainSize
     dd <- param[[name]][['df_name']]
-    predvar <- param$srt$predvar
+    predvar <- param[[name]][['predvar']]
 
     for (splitType in param[[name]][['splitType_set']]){
         
@@ -62,7 +106,7 @@ for (name in names(param)){
         
         ## rF
         rF_rsplit <- mclapply(seq(rsplit), function(i) {
-            set.seed(i)
+#             set.seed(i)
             fx_model(fx_sample(dd, nTrainSize, splitType, predvar=predvar), predvar=predvar, model.type = 'rF')},
             mc.cores = 20)
         # Contingency table across splits
