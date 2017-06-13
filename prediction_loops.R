@@ -80,7 +80,11 @@ param$neopir.conscientiousness$df_name[,param$neopir.conscientiousness$predvar] 
 ####
 
 # Output directory
-top <- '/data1/Ganz/Project14/Rresults/' #'/data1/patrick/fmri/hvi_trio/sad_classification/'
+if (match(Sys.getenv("LOGNAME"),'mganz')){
+  top <- '/data1/Ganz/Project14/Rresults/'
+} else {
+  top <- '/data1/patrick/fmri/hvi_trio/sad_classification/'
+}
 
 # n random splits
 rsplit <- 100

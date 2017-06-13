@@ -5,8 +5,13 @@ require('parallel')
 require('ROCR')
 require('e1071')
 
-out.folder <- '/data1/Ganz/Project14/'
-  #'/data1/patrick/fmri/hvi_trio/sad_classification/'
+
+if (match(Sys.getenv("LOGNAME"),'mganz')){
+  out.folder <- '/data1/Ganz/Project14/'
+} else {
+  out.folder <-  '/data1/patrick/fmri/hvi_trio/sad_classification/'
+}
+
 
 ####
 ## LOAD AND ORGANIZE DATA
