@@ -5,7 +5,12 @@ require('parallel')
 require('ROCR')
 require('e1071')
 
-out.folder <- '/data1/patrick/fmri/hvi_trio/sad_classification/'
+if (Sys.getenv("LOGNAME") == 'mganz'){
+  out.folder <- '/data1/Ganz/Project14/'
+} else {
+  out.folder <-  '/data1/patrick/fmri/hvi_trio/sad_classification/'
+}
+
 
 ####
 ## LOAD AND ORGANIZE DATA
@@ -123,22 +128,29 @@ dd_dasb <- cbind(dd_dasb[,c('cimbi.id', 'group', 'season', 'dasb.id', 'sex', 'ag
 ## Load Neuropsych data
 ####
 
-
-###
-## Load SB data
-###
-
 dd_np <- read.csv('/data1/patrick/fmri/hvi_trio/sad_classification/DBproject_SumWin_Neuropsy_MelPat.csv')
 
 # Rename columnes
+
 colnames(dd_np)[colnames(dd_np) == 'CIMBI.ID'] <- 'cimbi.id'
 colnames(dd_np)[colnames(dd_np) == 'Person.status'] <- 'group'
+colnames(dd_np)[colnames(dd_np) == "Date.of.neuropsychological.examination"] <- 'np.date'
+colnames(dd_np)[colnames(dd_np) == "Date.of.NEO.P.IR.examination"] <- 'np.date.neopir'
+# Covariates
 colnames(dd_np)[colnames(dd_np) == 'Gender'] <- 'sex'
 colnames(dd_np)[colnames(dd_np) == "Age.at.neuropsych"] <- 'age.np'
-colnames(dd_np)[colnames(dd_np) == "Date.of.neuropsychological.examination"] <- 'np.date'
+colnames(dd_np)[colnames(dd_np) == "Rist.-.Index"] <- 'IQ'
+colnames(dd_np)[colnames(dd_np) == "MDI"] <- 'MDI'
+# Livs paper
 colnames(dd_np)[colnames(dd_np) == "SDMT..correct..score"] <- 'sdmt.correct'
 colnames(dd_np)[colnames(dd_np) == "Letter.number.sequencing.total.score"] <- 'lns'
 colnames(dd_np)[colnames(dd_np) == "SRT...Total.mean.reaction.latency"] <- 'srt'
+# Deas paper                        
+colnames(dd_np)[colnames(dd_np) == "N..Neuroticism"] <- 'neopir.neuroticism'
+colnames(dd_np)[colnames(dd_np) == "E..Extraversion"] <- 'neopir.extraversion'
+colnames(dd_np)[colnames(dd_np) == "O..Openness"] <- 'neopir.openness'
+colnames(dd_np)[colnames(dd_np) == "A..Agreeableness"] <- 'neopir.agreeableness'
+colnames(dd_np)[colnames(dd_np) == "C..Conscientiousness"] <- 'neopir.conscientiousness'
 
 # Determine genotype status
 dd_np$httlpr2 <- factor(dd_np$SLC6A4.5HTTLPR == 'll', labels = c('sx', 'll'))
@@ -147,7 +159,7 @@ dd_np$sert2 <- factor(dd_np$SLC6A4.5HTTLPR == 'll' & dd_np$"SLC6A4.5HTTLPR.A.G..
 # Set variable type
 dd_np$group <- as.character(dd_np$group)
 
-# Determine season for each scan based on sb.scan.date
+# Determine season for each scan based on SRT,SDMT and LNS date
 dd_np$season <- NA
 for (i in seq(nrow(dd_np))){
     if (as.numeric(format(as.Date(dd_np[i,'np.date'], '%d/%m/%Y'), '%m')) %in% seq(4,8)){
@@ -157,6 +169,18 @@ for (i in seq(nrow(dd_np))){
     }
 }
 dd_np$season <- factor(dd_np$season, levels = c('S', 'W'))
+
+# Determine season for each scan based on NEOPIR date
+
+dd_np$season2 <- NA
+for (i in seq(nrow(dd_np))){
+  if (as.numeric(format(as.Date(dd_np[i,'np.date.neopir'], '%d/%m/%Y'), '%m')) %in% seq(4,8)){
+    dd_np[i,'season2'] <- 'S'
+  } else if((as.numeric(format(as.Date(dd_np[i,'np.date.neopir'], '%d/%m/%Y'), '%m')) %in% c(seq(10,12), seq(2)))){
+    dd_np[i,'season2'] <- 'W'
+  }
+}
+dd_np$season2 <- factor(dd_np$season2, levels = c('S', 'W'))
 
 ### dd_np.srt
 
@@ -221,6 +245,72 @@ for (i in unique(dd_np.sdmt_lns$cimbi.id)){
     dd_np.sdmt_lns[which(dd_np.sdmt_lns$cimbi.id == i), 'scan_order'] <- order(as.Date(dd_np.sdmt_lns[dd_np.sdmt_lns$cimbi.id == i, 'np.date'], '%d/%m/%Y'))
 }
 dd_np.sdmt_lns <- cbind(dd_np.sdmt_lns[,c('cimbi.id', 'group', 'season', 'sex', 'age.np', 'sdmt.correct', 'lns', 'scan_order')])
+
+### dd_np.neopir
+
+dd_np.neopir <- subset(dd_np, !is.na(dd_np[,'neopir.neuroticism']))
+not2 <- names(table(dd_np.neopir$cimbi.id))[table(dd_np.neopir$cimbi.id) < 2]
+dd_np.neopir <- subset(dd_np.neopir, !dd_np.neopir$cimbi.id %in% not2)
+
+ids <- unique(dd_np.neopir$cimbi.id)
+
+for (id in ids){
+  tmp <- dd_np.neopir[dd_np.neopir$cimbi.id == id, c('cimbi.id', 'np.date.neopir', 'neopir.neuroticism','neopir.extraversion','neopir.openness','neopir.agreeableness','neopir.conscientiousness', 'season2')]
+  
+  ## Verbose output
+  # writeLines('Original')
+  # print(tmp)
+  
+  if (length(unique(tmp[,'season2'])) == 1) {
+    dd_np.neopir <- subset(dd_np.neopir, dd_np.neopir$cimbi.id != unique(tmp$cimbi.id))
+    next
+  } 
+  
+  dateMult = names(table(tmp$date.neopir))[table(tmp$np.date.neopir)>1]
+  
+  if (length(dateMult)){
+    for (dMult in dateMult){
+      rowId = which(dd_np.neopir$cimbi.id==id)
+      removeRow = rowId[dd_np.neopir$np.date.neopir[rowId]==dMult][-1]
+      dd_np.neopir <- dd_np.neopir[-removeRow,]
+    }
+    tmp <- dd_np.neopir[dd_np.neopir$cimbi.id == id, c('cimbi.id', 'np.date.neopir', 'neopir.neuroticism','neopir.extraversion','neopir.openness','neopir.agreeableness','neopir.conscientiousness', 'season2')]
+  }
+  
+  for (tmpSeason in c('S', 'W')){
+    tmpCimbi.id <- unique(tmp[,'cimbi.id'])
+    nRows <- sum(tmp[,'season2'] == tmpSeason)
+    earliestDate <- min(as.Date(tmp[tmp[,'season2'] == tmpSeason, 'np.date.neopir'], '%d/%m/%Y'))
+    dd_np.neopir <- subset(dd_np.neopir, !(dd_np.neopir$cimbi.id == tmpCimbi.id & as.Date(dd_np.neopir$np.date.neopir, '%d/%m/%Y') != earliestDate & dd_np.neopir$season == tmpSeason))
+  }
+  
+  ## Verbose output
+  # writeLines('New')
+  # print(dd_np.neopir[dd_np.neopir$cimbi.id == id,c('cimbi.id', 'np.date.neopir', 'neopir.neuroticism','neopir.extraversion','neopir.openness','neopir.agreeableness','neopir.conscientiousness', 'season2')])
+}
+
+# Define first scan based on date
+dd_np.neopir$scan_order <- NA
+for (i in unique(dd_np.neopir$cimbi.id)){
+  dd_np.neopir[which(dd_np.neopir$cimbi.id == i), 'scan_order'] <- order(as.Date(dd_np.neopir[dd_np.neopir$cimbi.id == i, 'np.date.neopir'], '%d/%m/%Y'))
+}
+dd_np.neopir <- cbind(dd_np.neopir[,c('cimbi.id', 'group', 'season2', 'sex', 'age.np','neopir.neuroticism','neopir.extraversion','neopir.openness','neopir.agreeableness','neopir.conscientiousness', 'scan_order')])
+
+names(dd_np.neopir) <- sub("^season2$","season",names(dd_np.neopir))
+
+### Combined datasets
+
+# Datasets with all neuropsych data (SAD = 24, HC = 22)
+dd_np.all <- merge(dd_np.neopir, dd_np.sdmt_lns, by = c('cimbi.id', 'season', 'group', 'sex', 'age.np', 'scan_order'))
+dd_np.all <- merge(dd_np.all, dd_np.srt, by = c('cimbi.id', 'season', 'group', 'sex'), suffixes = c('.neopir_sdmt', '.srt'))
+
+# Datasets with all fMRI + neuropsych data (SAD = 11, HC = 10)
+dd_fmri_np <- merge(dd_np.neopir, dd0, by = c('cimbi.id', 'season', 'group'), suffixes = c('.neopir_sdmt', '.fmri'))
+dd_fmri_np <- merge(dd_fmri_np, dd_np.sdmt_lns, by = c('cimbi.id', 'season', 'group', 'sex', 'age.np'))
+dd_fmri_np <- dd_fmri_np[,!(colnames(dd_fmri_np) %in% 'scan_order')]
+
+dd_fmri_np <- merge(dd_fmri_np, dd_np.srt, by = c('cimbi.id', 'season', 'group', 'sex'), suffixes = c('.neopir_sdmt', '.srt'))
+colnames(dd_fmri_np)[colnames(dd_fmri_np) == 'scan_order'] <- 'scan_order.srt'
 
 ####
 ## DEFINE FUNCTIONS
@@ -620,47 +710,3 @@ rsplitPerf <- fx_modelPerf(rF_rsplitTable, make.c_table = F)
 # Generate ROC
 rF.popROC <- fx_popROC(rF_rsplit)
 plot(rF.popROC$perfObj)
-
-## Permute labels to derive null distribution
-
-###
-## Random split resampling within each permutation
-###
-
-# n permutations
-perm <- 100
-
-permOutput <- lapply(seq(perm), function(i) fx_internalPerm(dd))
-fx_nullComparison(permOutput, rsplitPerf)
-
-###
-## Old permutation method
-##
-
-### Description: For each permutation ("perm") group labels are shuffled and then ids are divided into train/test groups ("fx_sample").  A model is fit ("fx_model") with "nTrainSize" individuals from each group in the train dataset based on "splitType".  Model is evaluated with unseen observations to derive performance measure.  Performing this "perm" times derives a null distribution against which true observations can be compared.
-
-### Why might this be a problem? Through discussions between Patrick and Melanie, Melanie suggested that this is an imperfect null distribution because each permutation does not assess accuracy for each dataset, only those that happened to be assigned to test group.  As an alternative, she suggested shuffling group labels and then evaluating model "rsplit" times to derive an accuracy measure for a given permutation.  This process would be performed "perm" times to derive a null distribution.
-
-### PMF 20170519
-
-# n permutations
-perm <- 100
-
-# Evaluate performance for each permutation
-rF_perm <- mclapply(seq(perm),function(i) fx_model(fx_sample(dd, nTrainSize, splitType, predvar=predvar, perm = T), predvar=predvar, model.type = 'rf'),mc.cores = 20)
-
-# Permutation contingency table
-rF_permTable <- fx_cTable(rF_perm)
-
-# Permutation performance measures
-rF_permPerf <- lapply(seq(perm),
-                  function(i) fx_modelPerf(rF_perm[[i]]))
-rF_perm.popROC <- fx_popROC(rF_perm, perm.test = rF.popROC)
-
-plot(rF.popROC$perfObj, col = 'red')
-plot(rF_perm.popROC$perfObj, add = T, col = 'black')
-
-# Performance measures vs. null distribution
-perfSummary <- fx_nullComparison(rF_permPerf, rsplitPerf, measure = 'accuracy')
-
-
