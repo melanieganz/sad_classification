@@ -39,6 +39,21 @@ param <- list()
 # param$sdmt_lns$predvar <- c('sdmt.correct','lns')
 # param$sdmt_lns$df_name[,param$sdmt_lns$predvar] <- scale(param$sdmt_lns$df_name[,param$sdmt_lns$predvar])
 
+
+param$mixed1 <- list()
+param$mixed1$df_name <- dd_np.all
+param$mixed1$nTrainSize <- 18
+param$mixed1$splitType_set <- c('winter', 'summer', 'random')
+param$mixed1$predvar <- c("neopir.neuroticism","neopir.extraversion","neopir.openness","neopir.agreeableness","neopir.conscientiousness", 'sdmt.correct', 'lns', 'srt')
+param$mixed1$df_name[,param$mixed1$predvar] <- scale(param$mixed1$df_name[,param$mixed1$predvar])
+
+param$mixed2 <- list()
+param$mixed2$df_name <- dd_fmri_np
+param$mixed2$nTrainSize <- 8
+param$mixed2$splitType_set <- c('winter', 'summer', 'random')
+param$mixed2$predvar <- c("neopir.neuroticism","neopir.extraversion","neopir.openness","neopir.agreeableness","neopir.conscientiousness", 'sdmt.correct', 'lns', 'srt', "angry_lamy", "angry_ramy", "fear_lamy", "fear_ramy", "neutral_lamy", "neutral_ramy")
+param$mixed2$df_name[,param$mixed2$predvar] <- scale(param$mixed2$df_name[,param$mixed2$predvar])
+
 param$neopir <- list()
 param$neopir$df_name <- dd_np.neopir
 param$neopir$nTrainSize <- 20
@@ -46,12 +61,12 @@ param$neopir$splitType_set <- c('winter', 'summer', 'first', 'random')
 param$neopir$predvar <- c("neopir.neuroticism","neopir.extraversion","neopir.openness","neopir.agreeableness","neopir.conscientiousness")
 param$neopir$df_name[,param$neopir$predvar] <- scale(param$neopir$df_name[,param$neopir$predvar])
 
-
 ####
 ## ANALYSIS
 ####
 
 # Output directory
+
 if (match(Sys.getenv("LOGNAME"),'mganz')){
   top <- '/data1/Ganz/Project14/Rresults/'
 } else {
@@ -161,4 +176,3 @@ for (name in names(param)){
     }
 }
 endTime <- Sys.time()
-paste0('Run time: ', signif(endTime - startTime, 3), ' seconds')

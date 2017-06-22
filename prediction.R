@@ -5,7 +5,6 @@ require('parallel')
 require('ROCR')
 require('e1071')
 
-
 if (match(Sys.getenv("LOGNAME"),'mganz')){
   out.folder <- '/data1/Ganz/Project14/'
 } else {
@@ -259,11 +258,12 @@ for (id in ids){
   tmp <- dd_np.neopir[dd_np.neopir$cimbi.id == id, c('cimbi.id', 'np.date.neopir', 'neopir.neuroticism','neopir.extraversion','neopir.openness','neopir.agreeableness','neopir.conscientiousness', 'season2')]
   
   ## Verbose output
-  #writeLines('Original')
-  #print(tmp)
+
+  # writeLines('Original')
+  # print(tmp)
   
   if (length(unique(tmp[,'season2'])) == 1) {
-    dd_np.neopir <- subset(dd_np.neopir, dd_np.neopir$cimbi.id != tmp$cimbi.id)
+    dd_np.neopir <- subset(dd_np.neopir, dd_np.neopir$cimbi.id != unique(tmp$cimbi.id))
     next
   } 
   
@@ -298,6 +298,20 @@ for (i in unique(dd_np.neopir$cimbi.id)){
 dd_np.neopir <- cbind(dd_np.neopir[,c('cimbi.id', 'group', 'season2', 'sex', 'age.np','neopir.neuroticism','neopir.extraversion','neopir.openness','neopir.agreeableness','neopir.conscientiousness', 'scan_order')])
 
 names(dd_np.neopir) <- sub("^season2$","season",names(dd_np.neopir))
+
+### Combined datasets
+
+# Datasets with all neuropsych data (SAD = 24, HC = 22)
+dd_np.all <- merge(dd_np.neopir, dd_np.sdmt_lns, by = c('cimbi.id', 'season', 'group', 'sex', 'age.np', 'scan_order'))
+dd_np.all <- merge(dd_np.all, dd_np.srt, by = c('cimbi.id', 'season', 'group', 'sex'), suffixes = c('.neopir_sdmt', '.srt'))
+
+# Datasets with all fMRI + neuropsych data (SAD = 11, HC = 10)
+dd_fmri_np <- merge(dd_np.neopir, dd0, by = c('cimbi.id', 'season', 'group'), suffixes = c('.neopir_sdmt', '.fmri'))
+dd_fmri_np <- merge(dd_fmri_np, dd_np.sdmt_lns, by = c('cimbi.id', 'season', 'group', 'sex', 'age.np'))
+dd_fmri_np <- dd_fmri_np[,!(colnames(dd_fmri_np) %in% 'scan_order')]
+
+dd_fmri_np <- merge(dd_fmri_np, dd_np.srt, by = c('cimbi.id', 'season', 'group', 'sex'), suffixes = c('.neopir_sdmt', '.srt'))
+colnames(dd_fmri_np)[colnames(dd_fmri_np) == 'scan_order'] <- 'scan_order.srt'
 
 ####
 ## DEFINE FUNCTIONS
