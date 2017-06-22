@@ -5,7 +5,7 @@ require('parallel')
 require('ROCR')
 require('e1071')
 
-if (Sys.getenv("LOGNAME") == 'mganz'){
+if (match(Sys.getenv("LOGNAME"),'mganz')){
   out.folder <- '/data1/Ganz/Project14/'
 } else {
   out.folder <-  '/data1/patrick/fmri/hvi_trio/sad_classification/'
@@ -258,6 +258,7 @@ for (id in ids){
   tmp <- dd_np.neopir[dd_np.neopir$cimbi.id == id, c('cimbi.id', 'np.date.neopir', 'neopir.neuroticism','neopir.extraversion','neopir.openness','neopir.agreeableness','neopir.conscientiousness', 'season2')]
   
   ## Verbose output
+
   # writeLines('Original')
   # print(tmp)
   
@@ -285,8 +286,8 @@ for (id in ids){
   }
   
   ## Verbose output
-  # writeLines('New')
-  # print(dd_np.neopir[dd_np.neopir$cimbi.id == id,c('cimbi.id', 'np.date.neopir', 'neopir.neuroticism','neopir.extraversion','neopir.openness','neopir.agreeableness','neopir.conscientiousness', 'season2')])
+  #writeLines('New')
+  #print(dd_np.neopir[dd_np.neopir$cimbi.id == id,c('cimbi.id', 'np.date.neopir', 'neopir.neuroticism','neopir.extraversion','neopir.openness','neopir.agreeableness','neopir.conscientiousness', 'season2')])
 }
 
 # Define first scan based on date

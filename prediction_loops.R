@@ -39,6 +39,7 @@ param <- list()
 # param$sdmt_lns$predvar <- c('sdmt.correct','lns')
 # param$sdmt_lns$df_name[,param$sdmt_lns$predvar] <- scale(param$sdmt_lns$df_name[,param$sdmt_lns$predvar])
 
+
 param$mixed1 <- list()
 param$mixed1$df_name <- dd_np.all
 param$mixed1$nTrainSize <- 18
@@ -53,15 +54,23 @@ param$mixed2$splitType_set <- c('winter', 'summer', 'random')
 param$mixed2$predvar <- c("neopir.neuroticism","neopir.extraversion","neopir.openness","neopir.agreeableness","neopir.conscientiousness", 'sdmt.correct', 'lns', 'srt', "angry_lamy", "angry_ramy", "fear_lamy", "fear_ramy", "neutral_lamy", "neutral_ramy")
 param$mixed2$df_name[,param$mixed2$predvar] <- scale(param$mixed2$df_name[,param$mixed2$predvar])
 
+param$neopir <- list()
+param$neopir$df_name <- dd_np.neopir
+param$neopir$nTrainSize <- 20
+param$neopir$splitType_set <- c('winter', 'summer', 'first', 'random')
+param$neopir$predvar <- c("neopir.neuroticism","neopir.extraversion","neopir.openness","neopir.agreeableness","neopir.conscientiousness")
+param$neopir$df_name[,param$neopir$predvar] <- scale(param$neopir$df_name[,param$neopir$predvar])
+
 ####
 ## ANALYSIS
 ####
 
 # Output directory
-if (Sys.getenv("LOGNAME") == 'mganz'){
-    top <- '/data1/Ganz/Project14/Rresults'
+
+if (match(Sys.getenv("LOGNAME"),'mganz')){
+  top <- '/data1/Ganz/Project14/Rresults/'
 } else {
-    top <-  '/data1/patrick/fmri/hvi_trio/sad_classification/'
+  top <- '/data1/patrick/fmri/hvi_trio/sad_classification/'
 }
 
 # n random splits
