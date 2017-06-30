@@ -5,7 +5,7 @@ require('parallel')
 require('ROCR')
 require('e1071')
 
-if (match(Sys.getenv("LOGNAME"),'mganz')){
+if (Sys.getenv("LOGNAME") == 'mganz'){
   out.folder <- '/data1/Ganz/Project14/'
 } else {
   out.folder <-  '/data1/patrick/fmri/hvi_trio/sad_classification/'
@@ -37,6 +37,43 @@ for (i in unique(dd0$cimbi.id)){
 
 # Data included in Camilla manuscript
 # dd0 <- dd0[dd0$camilla_dataset == 1,]
+
+####
+## LOAD RS-fMRI
+####
+
+# Borrow demographic information from faces data.frame
+dd0 <- read.csv('/data1/patrick/fmri/hvi_trio/sad_classification/sad_fmri.csv')
+dd0$group <- as.character(dd0$group)
+dd0$mr.id <- as.character(dd0$mr.id)
+dd0$scan_order <- NA
+for (i in unique(dd0$cimbi.id)){
+    dd0[which(dd0$cimbi.id == i), 'scan_order'] <- order(dd0[dd0$cimbi.id == i,'mr.id'])
+}
+
+# Location where rs-fMRI data are stored
+top <- '/data1/patrick/fmri/hvi_trio/sad_classification/rs/'
+
+# Connectivity values from ROI2ROI matrix
+vals <- read.csv(paste0(top, 'rs_roi2roiValues.csv'), header = F)
+
+# Pairs of regions for each row
+pairs <- read.csv(paste0(top, 'rs_roi2roiPairs.txt'), header = F, sep = ';', stringsAsFactors = F)
+pairs <- cbind(pairs[[1]], pairs[[2]])
+
+# mr.ids for each row
+ids <- read.csv(paste0(top, 'rs_roi2roiIDs.txt'), header = F)
+ids <- as.character(ids[[1]])
+
+# txt string used to grab specific ROI2ROI values
+rsName <- 'DefaultMode'
+match_rows <- unlist(lapply(seq(nrow(pairs)), function(i) all(grepl(rsName, pairs[i,]))))
+dd_rs <- cbind(ids, vals[,match_rows])
+colnames(dd_rs) <- c('mr.id', paste0(rsName, '.', seq(sum(match_rows))))
+
+# Merge demo data from faces data.frame and rs-fMRI data
+dd0_info <- dd0[,c('cimbi.id', 'group', 'season', 'mr.id', 'camilla_dataset', 'scan_order')]
+dd_rs <- merge(dd_rs, dd0_info, by = 'mr.id')
 
 ###
 ## Load SB data
@@ -258,7 +295,6 @@ for (id in ids){
   tmp <- dd_np.neopir[dd_np.neopir$cimbi.id == id, c('cimbi.id', 'np.date.neopir', 'neopir.neuroticism','neopir.extraversion','neopir.openness','neopir.agreeableness','neopir.conscientiousness', 'season2')]
   
   ## Verbose output
-
   # writeLines('Original')
   # print(tmp)
   
@@ -286,8 +322,8 @@ for (id in ids){
   }
   
   ## Verbose output
-  #writeLines('New')
-  #print(dd_np.neopir[dd_np.neopir$cimbi.id == id,c('cimbi.id', 'np.date.neopir', 'neopir.neuroticism','neopir.extraversion','neopir.openness','neopir.agreeableness','neopir.conscientiousness', 'season2')])
+  # writeLines('New')
+  # print(dd_np.neopir[dd_np.neopir$cimbi.id == id,c('cimbi.id', 'np.date.neopir', 'neopir.neuroticism','neopir.extraversion','neopir.openness','neopir.agreeableness','neopir.conscientiousness', 'season2')])
 }
 
 # Define first scan based on date
@@ -299,19 +335,28 @@ dd_np.neopir <- cbind(dd_np.neopir[,c('cimbi.id', 'group', 'season2', 'sex', 'ag
 
 names(dd_np.neopir) <- sub("^season2$","season",names(dd_np.neopir))
 
-### Combined datasets
+####
+## COMBINED DATASETS
+####
 
-# Datasets with all neuropsych data (SAD = 24, HC = 22)
+### Datasets with all neuropsych data (SAD = 24, HC = 22)
 dd_np.all <- merge(dd_np.neopir, dd_np.sdmt_lns, by = c('cimbi.id', 'season', 'group', 'sex', 'age.np', 'scan_order'))
 dd_np.all <- merge(dd_np.all, dd_np.srt, by = c('cimbi.id', 'season', 'group', 'sex'), suffixes = c('.neopir_sdmt', '.srt'))
 
-# Datasets with all fMRI + neuropsych data (SAD = 11, HC = 10)
+### Datasets with all fMRI + neuropsych data (SAD = 11, HC = 10)
 dd_fmri_np <- merge(dd_np.neopir, dd0, by = c('cimbi.id', 'season', 'group'), suffixes = c('.neopir_sdmt', '.fmri'))
 dd_fmri_np <- merge(dd_fmri_np, dd_np.sdmt_lns, by = c('cimbi.id', 'season', 'group', 'sex', 'age.np'))
 dd_fmri_np <- dd_fmri_np[,!(colnames(dd_fmri_np) %in% 'scan_order')]
 
 dd_fmri_np <- merge(dd_fmri_np, dd_np.srt, by = c('cimbi.id', 'season', 'group', 'sex'), suffixes = c('.neopir_sdmt', '.srt'))
 colnames(dd_fmri_np)[colnames(dd_fmri_np) == 'scan_order'] <- 'scan_order.srt'
+
+colnames(dd_rs)
+colnames(dd0)
+
+### rs-fMRI and emotional faces data
+dd_rs_faces <- merge(dd_rs[,c("mr.id", paste0('DefaultMode.', seq(6)))], dd0, by = 'mr.id')
+
 
 ####
 ## DEFINE FUNCTIONS
