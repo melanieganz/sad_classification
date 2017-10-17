@@ -10,6 +10,14 @@ param <- list()
 # param$fMRI$splitType_set <- c('winter', 'summer', 'first', 'random')
 # param$fMRI$predvar <- c("angry_lamy", "angry_ramy", "fear_lamy", "fear_ramy", "neutral_lamy", "neutral_ramy")
 # param$fMRI$df_name[,param$fMRI$predvar] <- scale(param$fMRI$df_name[,param$fMRI$predvar])
+
+# param$rsfMRI <- list()
+# param$rsfMRI$df_name <- dd_rs
+# param$rsfMRI$nTrainSize <- 16
+# param$rsfMRI$splitType_set <- c('winter', 'summer', 'first', 'random')
+# param$rsfMRI$predvar <- paste0('DefaultMode', seq(6))
+# param$rsfMRI$df_name[,param$rsfMRI$predvar] <- scale(param$rsfMRI$df_name[,param$rsfMRI$predvar])
+
 # 
 # param$SB <- list()
 # param$SB$df_name <- dd_sb
@@ -39,38 +47,36 @@ param <- list()
 # param$sdmt_lns$predvar <- c('sdmt.correct','lns')
 # param$sdmt_lns$df_name[,param$sdmt_lns$predvar] <- scale(param$sdmt_lns$df_name[,param$sdmt_lns$predvar])
 
+# param$mixed1 <- list()
+# param$mixed1$df_name <- dd_np.all
+# param$mixed1$nTrainSize <- 18
+# param$mixed1$splitType_set <- c('winter', 'summer', 'random')
+# param$mixed1$predvar <- c("neopir.neuroticism","neopir.extraversion","neopir.openness","neopir.agreeableness","neopir.conscientiousness", 'sdmt.correct', 'lns', 'srt')
+# param$mixed1$df_name[,param$mixed1$predvar] <- scale(param$mixed1$df_name[,param$mixed1$predvar])
 
-param$mixed1 <- list()
-param$mixed1$df_name <- dd_np.all
-param$mixed1$nTrainSize <- 18
-param$mixed1$splitType_set <- c('winter', 'summer', 'random')
-param$mixed1$predvar <- c("neopir.neuroticism","neopir.extraversion","neopir.openness","neopir.agreeableness","neopir.conscientiousness", 'sdmt.correct', 'lns', 'srt')
-param$mixed1$df_name[,param$mixed1$predvar] <- scale(param$mixed1$df_name[,param$mixed1$predvar])
+# param$mixed2 <- list()
+# param$mixed2$df_name <- dd_fmri_np
+# param$mixed2$nTrainSize <- 8
+# param$mixed2$splitType_set <- c('winter', 'summer', 'random')
+# param$mixed2$predvar <- c("neopir.neuroticism","neopir.extraversion","neopir.openness","neopir.agreeableness","neopir.conscientiousness", 'sdmt.correct', 'lns', 'srt', "angry_lamy", "angry_ramy", "fear_lamy", "fear_ramy", "neutral_lamy", "neutral_ramy")
+# param$mixed2$df_name[,param$mixed2$predvar] <- scale(param$mixed2$df_name[,param$mixed2$predvar])
 
-param$mixed2 <- list()
-param$mixed2$df_name <- dd_fmri_np
-param$mixed2$nTrainSize <- 8
-param$mixed2$splitType_set <- c('winter', 'summer', 'random')
-param$mixed2$predvar <- c("neopir.neuroticism","neopir.extraversion","neopir.openness","neopir.agreeableness","neopir.conscientiousness", 'sdmt.correct', 'lns', 'srt', "angry_lamy", "angry_ramy", "fear_lamy", "fear_ramy", "neutral_lamy", "neutral_ramy")
-param$mixed2$df_name[,param$mixed2$predvar] <- scale(param$mixed2$df_name[,param$mixed2$predvar])
-
-param$neopir <- list()
-param$neopir$df_name <- dd_np.neopir
-param$neopir$nTrainSize <- 20
-param$neopir$splitType_set <- c('winter', 'summer', 'first', 'random')
-param$neopir$predvar <- c("neopir.neuroticism","neopir.extraversion","neopir.openness","neopir.agreeableness","neopir.conscientiousness")
-param$neopir$df_name[,param$neopir$predvar] <- scale(param$neopir$df_name[,param$neopir$predvar])
+# param$mixed3 <- list()
+# param$mixed3$df_name <- dd_rs_faces
+# param$mixed3$nTrainSize <- 16
+# param$mixed3$splitType_set <- c('winter')#, 'summer', 'random')
+# param$mixed3$predvar <- c("angry_lamy", "angry_ramy", "fear_lamy", "fear_ramy", "neutral_lamy", "neutral_ramy", paste0('DefaultMode.', seq(6)))
+# param$mixed3$df_name[,param$mixed3$predvar] <- scale(param$mixed3$df_name[,param$mixed3$predvar])
 
 ####
 ## ANALYSIS
 ####
 
 # Output directory
-
-if (match(Sys.getenv("LOGNAME"),'mganz')){
-  top <- '/data1/Ganz/Project14/Rresults/'
+if (Sys.getenv("LOGNAME") == 'mganz'){
+    top <- '/data1/Ganz/Project14/Rresults'
 } else {
-  top <- '/data1/patrick/fmri/hvi_trio/sad_classification/'
+    top <-  '/data1/patrick/fmri/hvi_trio/sad_classification/'
 }
 
 # n random splits
@@ -175,4 +181,113 @@ for (name in names(param)){
         dev.off()
     }
 }
-endTime <- Sys.time()
+
+
+
+####
+## BOOTSTRAP (not polished)
+####
+
+# boot_repeat <- 100
+# boot_result <- data.frame(log.spe = rep(0,boot_repeat), log.sen = rep(0,boot_repeat), log.acc = rep(0,boot_repeat), rf.spe = rep(0,boot_repeat), rf.sen = rep(0,boot_repeat), rf.acc = rep(0,boot_repeat), svm.spe = rep(0,boot_repeat), svm.sen = rep(0,boot_repeat), svm.acc = rep(0,boot_repeat))
+# 
+# for (k in seq(boot_repeat)){
+#     for (name in names(param)){
+#         
+#         nTrainSize <- param[[name]]$nTrainSize
+#         dd <- param[[name]][['df_name']]
+#         predvar <- param[[name]][['predvar']]
+#         
+#         for (splitType in param[[name]][['splitType_set']]){
+#             
+#             print(paste0('Working on: ', k))
+#             
+#             ### Derive observed accuracy
+#             
+#             ## rF
+#             rF_rsplit <- mclapply(seq(rsplit), function(i) {
+#                 set.seed(i)
+#                 fx_model(fx_sample(dd, nTrainSize, splitType, predvar=predvar), predvar=predvar, model.type = 'rF')},
+#                 mc.cores = 20)
+#             # Contingency table across splits
+#             rF_rsplitTable <- fx_cTable(rF_rsplit)
+#             # Performance measures across splits
+#             rF_rsplitPerf <- fx_modelPerf(rF_rsplitTable, make.c_table = F)
+#             
+#             boot_result[k, 'rf.spe'] <- rF_rsplitPerf$specificity
+#             boot_result[k, 'rf.sen'] <- rF_rsplitPerf$sensitivity
+#             boot_result[k, 'rf.acc'] <- rF_rsplitPerf$accuracy
+#             
+#             ## logistic
+#             logistic_rsplit <- mclapply(seq(rsplit), function(i) {
+#                 set.seed(i)
+#                 fx_model(fx_sample(dd, nTrainSize, splitType, predvar=predvar), predvar=predvar, model.type = 'logistic')}, 
+#                 mc.cores = 20)
+#             # Contingency table across splits
+#             logistic_rsplitTable <- fx_cTable(logistic_rsplit)
+#             # Performance measures across splits
+#             logistic_rsplitPerf <- fx_modelPerf(logistic_rsplitTable, make.c_table = F)
+#             
+#             boot_result[k, 'log.spe'] <- logistic_rsplitPerf$specificity
+#             boot_result[k, 'log.sen'] <- logistic_rsplitPerf$sensitivity
+#             boot_result[k, 'log.acc'] <- logistic_rsplitPerf$accuracy
+#             
+#             ## svm
+#             svm_rsplit <- mclapply(seq(rsplit), function(i) {
+#                 set.seed(i)
+#                 fx_model(fx_sample(dd, nTrainSize, splitType, predvar=predvar), predvar=predvar, model.type = 'svm')},
+#                 mc.cores = 20)
+#             # Contingency table across splits
+#             svm_rsplitTable <- fx_cTable(svm_rsplit)
+#             # Performance measures across splits
+#             svm_rsplitPerf <- fx_modelPerf(svm_rsplitTable, make.c_table = F)
+#             
+#             boot_result[k, 'svm.spe'] <- svm_rsplitPerf$specificity
+#             boot_result[k, 'svm.sen'] <- svm_rsplitPerf$sensitivity
+#             boot_result[k, 'svm.acc'] <- svm_rsplitPerf$accuracy
+#         }
+#     }
+# }
+# 
+# lapply(names(boot_result), function (i) {
+#     print(paste0(i, ': ', paste(quantile(boot_result[,i], probs = c(0.025, 0.975)), collapse = ',')))})
+# 
+# 
+# rf.acc <- sapply(seq(rsplit), function(i) fx_modelPerf(rF_rsplit[[i]])$accuracy)
+# rf.spe <- sapply(seq(rsplit), function(i) fx_modelPerf(rF_rsplit[[i]])$specificity)
+# rf.sen <- sapply(seq(rsplit), function(i) fx_modelPerf(rF_rsplit[[i]])$sensitivity)
+# log.acc <- sapply(seq(rsplit), function(i) fx_modelPerf(logistic_rsplit[[i]])$accuracy)
+# log.spe <- sapply(seq(rsplit), function(i) fx_modelPerf(logistic_rsplit[[i]])$specificity)
+# log.sen <- sapply(seq(rsplit), function(i) fx_modelPerf(logistic_rsplit[[i]])$sensitivity)
+# svm.acc <- sapply(seq(rsplit), function(i) fx_modelPerf(svm_rsplit[[i]])$accuracy)
+# svm.spe <- sapply(seq(rsplit), function(i) fx_modelPerf(svm_rsplit[[i]])$specificity)
+# svm.sen <- sapply(seq(rsplit), function(i) fx_modelPerf(svm_rsplit[[i]])$sensitivity)
+# 
+# pdf(paste0(top, 'melPlots.pdf'))
+# hist(rf.acc, main = 'rF accuracy')
+# abline(v = rF_rsplitPerf$accuracy, lwd = 2, col = 'red', lty = 2)
+# 
+# hist(rf.spe, main = 'rF specificity')
+# abline(v = rF_rsplitPerf$specificity, lwd = 2, col = 'red', lty = 2)
+# 
+# hist(rf.sen, main = 'rF sensitivity')
+# abline(v = rF_rsplitPerf$sensitivity, lwd = 2, col = 'red', lty = 2)
+# 
+# hist(log.acc, main = 'logistic accuracy')
+# abline(v = logistic_rsplitPerf$accuracy, lwd = 2, col = 'red', lty = 2)
+# 
+# hist(log.spe, main = 'logistic specificity')
+# abline(v = logistic_rsplitPerf$specificity, lwd = 2, col = 'red', lty = 2)
+# 
+# hist(log.sen, main = 'logistic sensitivity')
+# abline(v = logistic_rsplitPerf$sensitivity, lwd = 2, col = 'red', lty = 2)
+# 
+# hist(svm.acc, main = 'svm accuracy')
+# abline(v = svm_rsplitPerf$accuracy, lwd = 2, col = 'red', lty = 2)
+# 
+# hist(svm.spe, main = 'svm specificity')
+# abline(v = svm_rsplitPerf$specificity, lwd = 2, col = 'red', lty = 2)
+# 
+# hist(svm.sen, main = 'svm sensitivity')
+# abline(v = svm_rsplitPerf$sensitivity, lwd = 2, col = 'red', lty = 2)
+# dev.off()
